@@ -11,6 +11,7 @@ import Element.Font as Font
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
+import Maybe exposing (withDefault)
 import Maybe.Extra as Maybe2
 import Random.Pcg.Extended as Pcg
 import Set
@@ -57,7 +58,8 @@ init : AppFlags -> Url.Url -> Navigation.Key -> ( Model, Cmd Msg )
 init flags _ _ =
     let
         solution =
-            "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."
+            --"It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."
+            "Well-behaved women seldom make history."
 
         seed =
             Pcg.initialSeed
@@ -80,6 +82,8 @@ mapSecond f ( c, a ) =
     ( c, f a )
 
 
+{-| Create a puzzle from a solution by swapping letters. This could in theory return the solution as the puzzle.
+-}
 shuffle : String -> Pcg.Seed -> String
 shuffle string initialSeed =
     let
@@ -141,6 +145,23 @@ shuffle string initialSeed =
             Dict.get c translationTable |> Maybe.withDefault c
     in
     String.map translate string
+
+
+{-| Create a puzzle from a solution by swapping letters. This never returns the solution as the puzzle, but it will hang if the solution contains less than two distinct letters!
+-}
+guaranteedShuffle : String -> Pcg.Seed -> String
+guaranteedShuffle solution seed =
+    let
+        puzzle =
+            shuffle solution seed
+    in
+    if puzzle /= solution then
+        puzzle
+
+    else
+        case Pcg.step (Pcg.int Pcg.minInt Pcg.maxInt) seed of
+            ( _, seed1 ) ->
+                guaranteedShuffle solution seed1
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -221,10 +242,17 @@ document model =
 
 view : Model -> Html Msg
 view model =
-    [ viewPuzzle model
+    let
+        paragraph s =
+            Element.paragraph [] [ text s ]
+    in
+    [ "Can you unscramble the letters of the following famous quotation?" |> paragraph
+    , titlize (clickVerb model) ++ " two letters to swap them. " ++ hint model |> paragraph
+    , puzzleView model
+    , "If you're having trouble finding a letter in the puzzle above, check the list of letters below. You can also " ++ clickVerb model ++ " those letters!" |> paragraph
+    , inventoryView model
     , undoButton model
     ]
-        ++ instructions model
         |> column
             [ Element.centerX
             , Element.centerY
@@ -235,21 +263,25 @@ view model =
             ]
 
 
-instructions : Model -> List (Element Msg)
-instructions model =
-    [ [ text """
-          Rearrange the letters to make a well-known quotation.
-          """ ] |> Element.paragraph []
-    , [ String.concat
-            [ titlize <| clickVerb model
-            , " two letters to swap them. For example, "
-            , clickVerb model
-            , " ‘t’ and ‘k’ to replace every ‘t’ with a ‘k’ and every ‘k’ with a ‘t‘."
-            ]
-            |> text
-      ]
-        |> Element.paragraph []
-    ]
+hint : Model -> String
+hint model =
+    let
+        pairs =
+            List.map2 (\a b -> ( a, b )) (model.puzzle |> String.toLower |> String.toList) (model.solution |> String.toLower |> String.toList)
+
+        areNotSame ( a, b ) =
+            a /= b
+
+        ( xChar, yChar ) =
+            pairs |> List.filter areNotSame |> List.head |> withDefault ( 'x', 'y' )
+
+        quote c =
+            "‘" ++ String.fromChar c ++ "’"
+
+        ( x, y, verb ) =
+            ( quote xChar, quote yChar, clickVerb model )
+    in
+    "For example, " ++ verb ++ " " ++ x ++ " and " ++ y ++ " to replace every " ++ x ++ " with " ++ y ++ " and vice versa."
 
 
 clickVerb : Model -> String
@@ -282,7 +314,7 @@ undoButton model =
             ]
 
 
-viewPuzzle model =
+puzzleView model =
     let
         words =
             model.puzzle
@@ -298,7 +330,7 @@ viewPuzzle model =
                     []
     in
     words
-        |> List.map (viewWord model)
+        |> List.map (wordView model)
         |> wrappedRow
             [ Element.centerX
             , Font.family [ Font.monospace ]
@@ -307,16 +339,41 @@ viewPuzzle model =
             ]
 
 
-viewWord : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> String -> Element Msg
-viewWord model word =
+wordView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> String -> Element Msg
+wordView model word =
     word
         |> String.toList
-        |> List.map (viewCharacter model)
+        |> List.map (charView model)
         |> row [ unselectable ]
 
 
-viewCharacter : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> Char -> Element Msg
-viewCharacter model c =
+inventoryView : Model -> Element Msg
+inventoryView model =
+    let
+        letters =
+            model.solution
+                |> String.toLower
+                |> String.filter Char.isAlpha
+                |> String.toLower
+                |> String.toList
+                |> Set.fromList
+                |> Set.toList
+                |> List.sort
+                |> List.map (charView model)
+    in
+    wrappedRow
+        [ Element.centerX
+        , Font.family [ Font.monospace ]
+        , Font.size 34
+        , unselectable
+        ]
+    <|
+        [ text "Letters: " ]
+            ++ letters
+
+
+charView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> Char -> Element Msg
+charView model c =
     let
         cLower =
             Char.toLower c
