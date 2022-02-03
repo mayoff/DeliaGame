@@ -8,20 +8,20 @@
 //<![CDATA[
 undivert(`mini.js')
 //]]>
-</script>
+
+    </script>
 </head>
 <body>
-<div id="appnode"></div>
 <script>
   var randomSeed = new Uint32Array(4);
   window.crypto.getRandomValues(randomSeed);
   var app = Elm.Main.init({
-  node: document.getElementById('appnode'),
   flags: {
     'hasMouse': window.matchMedia('(pointer:fine)').matches,
     'randomSeed': Array.from(randomSeed)
   }
   });
+
 </script>
 </body>
 </html>
