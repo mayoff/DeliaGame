@@ -1,7 +1,7 @@
 module Main exposing (..)
 
-import Array exposing (Array)
-import Browser
+import Browser exposing (Document)
+import Browser.Navigation as Navigation
 import Dict
 import Element exposing (Element, column, el, padding, row, text, wrappedRow)
 import Element.Background as Background
@@ -14,6 +14,7 @@ import Html.Events
 import Maybe.Extra as Maybe2
 import Random.Pcg.Extended as Pcg
 import Set
+import Url
 
 
 type alias Model =
@@ -27,19 +28,22 @@ type alias Model =
 
 
 type Msg
-    = MouseEnter Char
+    = Click Char
+    | Ignore
+    | MouseEnter Char
     | MouseLeave Char
-    | Click Char
     | Undo
 
 
 main : Program AppFlags Model Msg
 main =
-    Browser.element
+    Browser.application
         { init = init
-        , update = update
-        , view = view
+        , onUrlChange = \_ -> Ignore
+        , onUrlRequest = \_ -> Ignore
         , subscriptions = \_ -> Sub.none
+        , update = update
+        , view = document
         }
 
 
@@ -49,8 +53,8 @@ type alias AppFlags =
     }
 
 
-init : AppFlags -> ( Model, Cmd Msg )
-init flags =
+init : AppFlags -> Url.Url -> Navigation.Key -> ( Model, Cmd Msg )
+init flags _ _ =
     let
         solution =
             "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."
@@ -145,6 +149,9 @@ update msg model =
         Click c ->
             ( applyClick model c, Cmd.none )
 
+        Ignore ->
+            ( model, Cmd.none )
+
         MouseEnter c ->
             ( { model | hovered = Just c }, Cmd.none )
 
@@ -205,6 +212,13 @@ applyUndo model =
             model
 
 
+document : Model -> Document Msg
+document model =
+    { title = "Delia's Game"
+    , body = [ view model ]
+    }
+
+
 view : Model -> Html Msg
 view model =
     [ viewPuzzle model
@@ -224,7 +238,7 @@ view model =
 instructions : Model -> List (Element Msg)
 instructions model =
     [ [ text """
-          Rearrange the letters to make a well-known phrase.
+          Rearrange the letters to make a well-known quotation.
           """ ] |> Element.paragraph []
     , [ String.concat
             [ titlize <| clickVerb model
@@ -286,6 +300,7 @@ viewPuzzle model =
             [ Element.centerX
             , Font.family [ Font.monospace ]
             , Font.size 34
+            , unselectable
             ]
 
 
@@ -294,7 +309,7 @@ viewWord model word =
     word
         |> String.toList
         |> List.map (viewCharacter model)
-        |> row []
+        |> row [ unselectable ]
 
 
 viewCharacter : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> Char -> Element Msg
@@ -347,6 +362,7 @@ viewCharacter model c =
             ([ padding 5
              , Border.rounded 5
              , Background.color bgColor
+             , unselectable
              ]
                 ++ extras
             )
@@ -356,6 +372,11 @@ cursor : String -> Element.Attribute msg
 cursor name =
     -- https://developer.mozilla.org/en-US/docs/Web/CSS/cursor
     style "cursor" name
+
+
+unselectable : Element.Attribute msg
+unselectable =
+    style "user-select" "none"
 
 
 style : String -> String -> Element.Attribute msg
