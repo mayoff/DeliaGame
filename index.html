@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Delia's Game</title>
+    <script src="main.js"></script>
+</head>
+<body>
+<div id="appnode"></div>
+<script>
+  var app = Elm.Main.init({
+  node: document.getElementById('appnode'),
+  flags: {
+    'hasMouse': window.matchMedia('(pointer:fine)').matches
+  }
+  });
+</script>
+</body>
+</html>
