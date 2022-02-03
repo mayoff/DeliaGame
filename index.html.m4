@@ -6,7 +6,7 @@
     <title>Delia's Game</title>
     <script>
 //<![CDATA[
-undivert(`main.js')
+undivert(`mini.js')
 //]]>
 </script>
 </head>
