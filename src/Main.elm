@@ -1,5 +1,6 @@
 module Main exposing (..)
 
+import Array exposing (Array)
 import Browser
 import Dict
 import Element exposing (Element, column, el, padding, row, text, wrappedRow)
@@ -44,6 +45,7 @@ main =
 
 type alias AppFlags =
     { hasMouse : Bool
+    , randomSeed : List Int
     }
 
 
@@ -52,8 +54,13 @@ init flags =
     let
         solution =
             "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."
+
+        seed =
+            Pcg.initialSeed
+                (List.head flags.randomSeed |> Maybe.withDefault 123)
+                (List.tail flags.randomSeed |> Maybe.withDefault [ 456 ])
     in
-    ( { puzzle = shuffle solution (Pcg.initialSeed 123 [ 456 ])
+    ( { puzzle = shuffle solution seed
       , solution = solution
       , history = []
       , hovered = Nothing
