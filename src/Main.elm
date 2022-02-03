@@ -276,7 +276,10 @@ undoButton model =
         [ Html.text "Undo"
         ]
         |> Element.html
-        |> el [ Element.centerX ]
+        |> el
+            [ Element.centerX
+            , unselectable
+            ]
 
 
 viewPuzzle model =
@@ -376,7 +379,12 @@ cursor name =
 
 unselectable : Element.Attribute msg
 unselectable =
-    style "user-select" "none"
+    Element.htmlAttribute <| Html.Attributes.attribute "style" """
+      -moz-user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    """
 
 
 style : String -> String -> Element.Attribute msg
