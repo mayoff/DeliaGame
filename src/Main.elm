@@ -264,8 +264,16 @@ applyClick model c =
                 let
                     newPuzzle =
                         String.map (charSwap c s) model.puzzle
+
+                    newHovered =
+                        model.hovered |> Maybe.map (\_ -> s)
                 in
-                setPuzzle { model | selected = Nothing } newPuzzle
+                setPuzzle
+                    { model
+                        | selected = Nothing
+                        , hovered = newHovered
+                    }
+                    newPuzzle
 
             else
                 model
@@ -336,7 +344,7 @@ view model =
         ++ " the letters in the list!"
         |> paragraph
     , inventoryView model
-    , "The number under each letter is how many times that letter appears in the puzzle. "
+    , "The number under each letter is how many times that letter currently appears in the puzzle. "
         ++ "The numbers will change as you swap letters."
         |> paragraph
     , undoButton model
