@@ -1,4 +1,4 @@
-module Main exposing (..)
+module Main exposing (main)
 
 import Browser exposing (Document)
 import Browser.Navigation as Navigation
@@ -15,12 +15,19 @@ import Maybe exposing (withDefault)
 import Maybe.Extra as Maybe2
 import Random.Pcg.Extended as Pcg
 import Set
+import Tuple exposing (mapBoth)
 import Url
+
+
+type alias Quotation =
+    { text : String
+    , author : String
+    }
 
 
 type alias Model =
     { puzzle : String
-    , solution : String
+    , quotation : Quotation
     , history : List String
     , hovered : Maybe Char
     , selected : Maybe Char
@@ -57,17 +64,29 @@ type alias AppFlags =
 init : AppFlags -> Url.Url -> Navigation.Key -> ( Model, Cmd Msg )
 init flags _ _ =
     let
-        solution =
-            --"It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."
-            "Well-behaved women seldom make history."
+        {-
+           { text = "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife."
+           , author = "Jane Austen"
+           }
+           { text = "Well-behaved women seldom make history."
+           , author = "Laurel Thatcher Ulrich"
+           }
+        -}
+        quotation =
+            { text = "A woman is like a tea bag; you never know how strong it is until it's in hot water."
+            , author = "Eleanor Roosevelt"
+            }
 
-        seed =
+        seed0 =
             Pcg.initialSeed
                 (List.head flags.randomSeed |> Maybe.withDefault 123)
                 (List.tail flags.randomSeed |> Maybe.withDefault [ 456 ])
+
+        ( _, puzzle ) =
+            makePuzzle seed0 quotation.text
     in
-    ( { puzzle = shuffle solution seed
-      , solution = solution
+    ( { puzzle = puzzle
+      , quotation = quotation
       , history = []
       , hovered = Nothing
       , selected = Nothing
@@ -77,95 +96,141 @@ init flags _ _ =
     )
 
 
-mapSecond : (a -> b) -> ( c, a ) -> ( c, b )
-mapSecond f ( c, a ) =
-    ( c, f a )
+vowelList : List Char
+vowelList =
+    "aeiou" |> String.toList
 
 
-{-| Create a puzzle from a solution by swapping letters. This could in theory return the solution as the puzzle.
--}
-shuffle : String -> Pcg.Seed -> String
-shuffle string initialSeed =
+isVowel : Char -> Bool
+isVowel c =
+    List.member c vowelList
+
+
+isnt : comparable -> comparable -> Bool
+isnt x y =
+    x /= y
+
+
+makePuzzle : Pcg.Seed -> String -> ( Pcg.Seed, String )
+makePuzzle seed0 solution =
     let
-        pick : Int -> List Char -> Maybe ( Char, List Char )
-        pick i cs =
-            case cs of
-                [] ->
-                    Nothing
+        uniqueChars =
+            solution |> String.toLower |> String.toList |> List.filter Char.isAlpha |> Set.fromList |> Set.toList
 
-                c :: rest ->
-                    if i == 0 then
-                        Just ( c, rest )
-
-                    else
-                        pick (i - 1) rest |> Maybe.map (mapSecond (\rest1 -> c :: rest1))
-
-        pickRandom : Pcg.Seed -> Int -> List Char -> Maybe ( Char, List Char, Pcg.Seed )
-        pickRandom seed cCount cs =
-            if cCount == 0 then
-                Nothing
+        categorize : Char -> { vowels : List Char, consonants : List Char } -> { vowels : List Char, consonants : List Char }
+        categorize c cats =
+            if isVowel c then
+                { cats | vowels = c :: cats.vowels }
 
             else
-                let
-                    gen =
-                        Pcg.int 0 (cCount - 1)
+                { cats | consonants = c :: cats.consonants }
 
-                    ( i, seed1 ) =
-                        Pcg.step gen seed
-                in
-                case pick i cs of
-                    Nothing ->
-                        Nothing
+        { vowels, consonants } =
+            uniqueChars |> List.foldl categorize { vowels = [], consonants = [] }
 
-                    Just ( c, rest ) ->
-                        Just ( c, rest, seed1 )
+        ( lowerVowelScrambler, seed1 ) =
+            makeScrambler vowels seed0
 
-        shuffleChars : Pcg.Seed -> Int -> List Char -> List Char
-        shuffleChars seed cCount cs =
-            case pickRandom seed cCount cs of
-                Nothing ->
-                    []
-
-                Just ( c, rest, seed1 ) ->
-                    c :: shuffleChars seed1 (cCount - 1) rest
-
-        uniqueChars =
-            string |> String.toList |> List.map Char.toLower |> List.filter Char.isAlpha |> Set.fromList |> Set.toList
-
-        shuffledChars =
-            shuffleChars initialSeed (List.length uniqueChars) uniqueChars
+        ( lowerConsonantScrambler, seed2 ) =
+            makeScrambler consonants seed1
 
         withUppers =
-            List.concatMap (\c -> [ c, Char.toUpper c ])
+            List.concatMap (\pair -> [ pair, pair |> mapBoth Char.toUpper Char.toUpper ])
 
-        translationTable =
-            List.map2 (\a b -> ( a, b )) (withUppers uniqueChars) (withUppers shuffledChars) |> Dict.fromList
+        scrambler =
+            (lowerVowelScrambler ++ lowerConsonantScrambler)
+                |> withUppers
+                |> Dict.fromList
 
-        translate c =
-            Dict.get c translationTable |> Maybe.withDefault c
+        scramble c =
+            Dict.get c scrambler |> withDefault c
     in
-    String.map translate string
+    ( seed2, String.map scramble solution )
 
 
-{-| Create a puzzle from a solution by swapping letters. This never returns the solution as the puzzle, but it will hang if the solution contains less than two distinct letters!
+type alias ScramblerBuild comparable =
+    { seed : Pcg.Seed
+    , xCount : Int
+    , xs : List comparable
+    , scrambler : List ( comparable, comparable )
+    }
+
+
+{-| Create a mapping of each element of `inputs` to a random element of `inputs` (without duplicates).
 -}
-guaranteedShuffle : String -> Pcg.Seed -> String
-guaranteedShuffle solution seed =
+makeScrambler : List comparable -> Pcg.Seed -> ( List ( comparable, comparable ), Pcg.Seed )
+makeScrambler inputs seed0 =
     let
-        puzzle =
-            shuffle solution seed
-    in
-    if puzzle /= solution then
-        puzzle
+        step : comparable -> ScramblerBuild comparable -> ScramblerBuild comparable
+        step k state =
+            case state.xs of
+                [] ->
+                    state
 
-    else
-        case Pcg.step (Pcg.int Pcg.minInt Pcg.maxInt) seed of
-            ( _, seed1 ) ->
-                guaranteedShuffle solution seed1
+                [ v ] ->
+                    { seed = state.seed
+                    , xCount = 0
+                    , xs = []
+                    , scrambler = ( k, v ) :: state.scrambler
+                    }
+
+                _ ->
+                    -- Try not to map k to itself. This guarantees that the scrambling won't map every element to itself, unless there are only 0 or 1 elements.
+                    let
+                        kList =
+                            if List.member k state.xs then
+                                [ k ]
+
+                            else
+                                []
+
+                        candidates =
+                            List.filter (isnt k) state.xs
+
+                        gen =
+                            Pcg.int 0 (List.length candidates - 1)
+
+                        ( i, nextSeed ) =
+                            Pcg.step gen state.seed
+
+                        tail =
+                            List.drop i candidates
+                    in
+                    case tail of
+                        [] ->
+                            state
+
+                        v :: rest ->
+                            { seed = nextSeed
+                            , xCount = state.xCount - 1
+                            , xs = List.take i candidates ++ rest ++ kList
+                            , scrambler = ( k, v ) :: state.scrambler
+                            }
+
+        initialState =
+            { seed = seed0, xCount = List.length inputs, xs = inputs, scrambler = [] }
+
+        finalState =
+            List.foldl step initialState inputs
+    in
+    ( finalState.scrambler, finalState.seed )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        hoverFor c =
+            case model.selected of
+                Nothing ->
+                    Just c
+
+                Just d ->
+                    if canSwap c d then
+                        Just c
+
+                    else
+                        Nothing
+    in
     case msg of
         Click c ->
             ( applyClick model c, Cmd.none )
@@ -174,17 +239,18 @@ update msg model =
             ( model, Cmd.none )
 
         MouseEnter c ->
-            ( { model | hovered = Just c }, Cmd.none )
+            ( { model | hovered = hoverFor c }, Cmd.none )
 
         MouseLeave c ->
-            let
-                isnt x y =
-                    x /= y
-            in
             ( { model | hovered = model.hovered |> Maybe2.filter (isnt c) }, Cmd.none )
 
         Undo ->
             ( applyUndo model, Cmd.none )
+
+
+canSwap : Char -> Char -> Bool
+canSwap c d =
+    isVowel c == isVowel d
 
 
 applyClick : Model -> Char -> Model
@@ -194,11 +260,15 @@ applyClick model c =
             { model | selected = Just c }
 
         Just s ->
-            let
-                newPuzzle =
-                    String.map (charSwap c s) model.puzzle
-            in
-            setPuzzle { model | selected = Nothing } newPuzzle
+            if canSwap s c then
+                let
+                    newPuzzle =
+                        String.map (charSwap c s) model.puzzle
+                in
+                setPuzzle { model | selected = Nothing } newPuzzle
+
+            else
+                model
 
 
 setPuzzle : Model -> String -> Model
@@ -245,13 +315,30 @@ view model =
     let
         paragraph s =
             Element.paragraph [] [ text s ]
+
+        verb =
+            clickVerb model
     in
-    [ "Can you unscramble the letters of the following famous quotation?" |> paragraph
-    , titlize (clickVerb model) ++ " two letters to swap them. " ++ hint model |> paragraph
+    [ "Can you unscramble the letters of the following quote by " ++ model.quotation.author ++ "?" |> paragraph
+    , titlize verb
+        ++ " two letters to swap them. For example, "
+        ++ verb
+        ++ " ‘x’ and ‘y’ to replace every ‘x’ with ‘y’ and vice-versa. If you "
+        ++ verb
+        ++ " a letter to start a swap, but then change your mind, "
+        ++ verb
+        ++ " the letter again to deselect it. You can only swap vowels with vowels, and consonants with consonants."
+        |> paragraph
     , puzzleView model
-    , "If you're having trouble finding a letter in the puzzle above, check the list of letters below. You can also " ++ clickVerb model ++ " those letters!" |> paragraph
+    , "If you're having trouble finding a letter in the puzzle above, check the list of letters below. "
+        ++ "The list only contains letters used in the puzzle. You can also "
+        ++ clickVerb model
+        ++ " the letters in the list!"
+        |> paragraph
     , inventoryView model
-    , "The number under each letter is how many times that letter appears in the puzzle. The numbers will change as you swap letters." |> paragraph
+    , "The number under each letter is how many times that letter appears in the puzzle. "
+        ++ "The numbers will change as you swap letters."
+        |> paragraph
     , undoButton model
     ]
         |> column
@@ -264,11 +351,13 @@ view model =
             ]
 
 
+
+{--
 hint : Model -> String
 hint model =
     let
         pairs =
-            List.map2 (\a b -> ( a, b )) (model.puzzle |> String.toLower |> String.toList) (model.solution |> String.toLower |> String.toList)
+            List.map2 (\a b -> ( a, b )) (model.puzzle |> String.toLower |> String.toList) (model.quotation.text |> String.toLower |> String.toList)
 
         areNotSame ( a, b ) =
             a /= b
@@ -283,6 +372,7 @@ hint model =
             ( quote xChar, quote yChar, clickVerb model )
     in
     "For example, " ++ verb ++ " " ++ x ++ " and " ++ y ++ " to replace every " ++ x ++ " with " ++ y ++ " and vice versa."
+--}
 
 
 clickVerb : Model -> String
@@ -364,20 +454,26 @@ inventoryView model =
                 |> String.filter Char.isAlpha
                 |> String.toList
                 |> List.foldl updateCounts Dict.empty
-
-        countedCharViews =
-            countedChars
                 |> Dict.toList
                 |> List.sort
-                |> List.map (countedCharView model)
+
+        ( countedVowels, countedConsonants ) =
+            List.partition (Tuple.first >> isVowel) countedChars
+
+        vowelRow =
+            List.map (countedCharView model) countedVowels |> row []
+
+        consonantRow =
+            List.map (countedCharView model) countedConsonants |> wrappedRow [ Element.width Element.fill ]
     in
-    wrappedRow
+    row
         [ centerX
         , unselectable
+        , Element.spacing 30
         ]
-    <|
-        [ text "Letters: " ]
-            ++ countedCharViews
+        [ vowelRow
+        , consonantRow
+        ]
 
 
 countedCharView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> ( Char, Int ) -> Element Msg
