@@ -71,10 +71,13 @@ init flags _ _ =
            { text = "Well-behaved women seldom make history."
            , author = "Laurel Thatcher Ulrich"
            }
-        -}
-        quotation =
             { text = "A woman is like a tea bag; you never know how strong it is until it's in hot water."
             , author = "Eleanor Roosevelt"
+            }
+        -}
+        quotation =
+            { text = "A woman without a man is like a fish without a bicycle."
+            , author = "Irina Dunn"
             }
 
         seed0 =
