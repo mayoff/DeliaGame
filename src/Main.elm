@@ -2,8 +2,8 @@ module Main exposing (..)
 
 import Browser exposing (Document)
 import Browser.Navigation as Navigation
-import Dict
-import Element exposing (Element, column, el, padding, row, text, wrappedRow)
+import Dict exposing (Dict)
+import Element exposing (Element, centerX, column, el, padding, row, text, wrappedRow)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Events exposing (onClick, onMouseEnter, onMouseLeave)
@@ -251,10 +251,11 @@ view model =
     , puzzleView model
     , "If you're having trouble finding a letter in the puzzle above, check the list of letters below. You can also " ++ clickVerb model ++ " those letters!" |> paragraph
     , inventoryView model
+    , "The number under each letter is how many times that letter appears in the puzzle. The numbers will change as you swap letters." |> paragraph
     , undoButton model
     ]
         |> column
-            [ Element.centerX
+            [ centerX
             , Element.centerY
             , Element.spacing 30
             ]
@@ -309,7 +310,7 @@ undoButton model =
         ]
         |> Element.html
         |> el
-            [ Element.centerX
+            [ centerX
             , unselectable
             ]
 
@@ -332,11 +333,7 @@ puzzleView model =
     words
         |> List.map (wordView model)
         |> wrappedRow
-            [ Element.centerX
-            , Font.family [ Font.monospace ]
-            , Font.size 34
-            , unselectable
-            ]
+            (charStyle ++ [ centerX, unselectable ])
 
 
 wordView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> String -> Element Msg
@@ -350,26 +347,53 @@ wordView model word =
 inventoryView : Model -> Element Msg
 inventoryView model =
     let
-        letters =
-            model.solution
+        incrementCount maybeCount =
+            case maybeCount of
+                Nothing ->
+                    Just 1
+
+                Just count ->
+                    Just (count + 1)
+
+        updateCounts c counts =
+            Dict.update c incrementCount counts
+
+        countedChars =
+            model.puzzle
                 |> String.toLower
                 |> String.filter Char.isAlpha
-                |> String.toLower
                 |> String.toList
-                |> Set.fromList
-                |> Set.toList
+                |> List.foldl updateCounts Dict.empty
+
+        countedCharViews =
+            countedChars
+                |> Dict.toList
                 |> List.sort
-                |> List.map (charView model)
+                |> List.map (countedCharView model)
     in
     wrappedRow
-        [ Element.centerX
-        , Font.family [ Font.monospace ]
-        , Font.size 34
+        [ centerX
         , unselectable
         ]
     <|
         [ text "Letters: " ]
-            ++ letters
+            ++ countedCharViews
+
+
+countedCharView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> ( Char, Int ) -> Element Msg
+countedCharView model ( c, count ) =
+    column
+        []
+        [ charView model c
+            |> el
+                (charStyle ++ [ centerX ])
+        , String.fromInt count
+            |> text
+            |> el
+                [ Font.size 16
+                , centerX
+                ]
+        ]
 
 
 charView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> Char -> Element Msg
@@ -442,6 +466,13 @@ unselectable =
       -ms-user-select: none;
       user-select: none;
     """
+
+
+charStyle : List (Element.Attribute msg)
+charStyle =
+    [ Font.family [ Font.monospace ]
+    , Font.size 34
+    ]
 
 
 style : String -> String -> Element.Attribute msg
