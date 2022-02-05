@@ -330,7 +330,7 @@ view model =
         verb =
             clickVerb model
     in
-    [ "Can you unscramble the letters of the following quote by " ++ model.quotation.author ++ "?" |> paragraph
+    [ "Can you unscramble the letters of the following quotation?" |> paragraph
     , titlize verb
         ++ " two letters to swap them. For example, "
         ++ verb
@@ -341,6 +341,7 @@ view model =
         ++ " the letter again to deselect it. You can only swap vowels with vowels, and consonants with consonants."
         |> paragraph
     , puzzleView model
+    , "—" ++ model.quotation.author |> text |> el [ Element.alignRight ]
     , "If you're having trouble finding a letter in the puzzle above, check the list of letters below. "
         ++ "The list only contains letters used in the puzzle. You can also "
         ++ clickVerb model
