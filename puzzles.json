@@ -1,0 +1,34 @@
+{
+  "puzzles" : [
+    {
+      "author" : "Jane Austen",
+      "date" : "2022-02-02",
+      "hash" : "ff3583336f59ddbfb6b202e15e9ed7fa05f3b6da8e159cd237af89fc02e5932e",
+      "text" : "Ug ur e gvigb idumovresst epndalsohcoh, gbeg e rudcso wed ud farrorruad ay e caah yavgido, wirg ko ud ledg ay e luyo."
+    },
+    {
+      "author" : "Laurel Thatcher Ulrich",
+      "date" : "2022-02-03",
+      "hash" : "b79dcba349ba4590dfff92535eb1121e2174c80e5607d1c3ca9df64a84ea7cd0",
+      "text" : "Tonn-vorewos tidok lonsid deyo ralbihm."
+    },
+    {
+      "author" : "Eleanor Roosevelt",
+      "date" : "2022-02-04",
+      "hash" : "d915b731dc12426b6b80a8400da89d691236f258811be0cbdc6e5c394b64fe96",
+      "text" : "I vuyik et remo i hoi nil; sua kobow mkuv guv thwukl eh et akher eh't ek guh vihow."
+    },
+    {
+      "author" : "Irina Dunn",
+      "date" : "2022-02-05",
+      "hash" : "2274d6436f192911c168d301610df79df94a294b60d3fd95224048d1e541b36e",
+      "text" : "I meliy mufneof i liy ub huta i subn mufneof i kuwcwha."
+    },
+    {
+      "author" : "George Carlin",
+      "date" : "2022-02-06",
+      "hash" : "f3844ceb4a7c003ec5232541257984b075ccb1033542c319ce61fa5444f78ffc",
+      "text" : "Sae vcay kti widk ktucp owaek cibfanturuo? Sae lac'k tohi ka wfucp grayifd. Siot, edeorrs ktis'fi orfiols ktifi. Udc'k ktok cubi? Uk'd cubi. Uk'd bachicuick."
+    }
+  ]
+}

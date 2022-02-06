@@ -4,24 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width">
     <title>Delia's Game</title>
-    <script>
+</head>
+<body>
+<script>
 //<![CDATA[
 undivert(`mini.js')
 //]]>
 
-    </script>
-</head>
-<body>
-<script>
-    var randomSeed = new Uint32Array(4);
-    window.crypto.getRandomValues(randomSeed);
+    {
+        const puzzles_json = undivert(`puzzles.json');
 
-    var app = Elm.Main.init({
-        flags: {
-            'hasMouse': window.matchMedia('(pointer:fine)').matches,
-            'randomSeed': Array.from(randomSeed)
-        }
-    });
+        var app = Elm.Main.init({
+            flags: {
+                'hasMouse': window.matchMedia('(pointer:fine)').matches,
+                'puzzles': puzzles_json.puzzles,
+            }
+        });
+    }
 </script>
 </body>
 </html>
