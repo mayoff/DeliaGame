@@ -74,10 +74,13 @@ init flags _ _ =
             { text = "A woman is like a tea bag; you never know how strong it is until it's in hot water."
             , author = "Eleanor Roosevelt"
             }
-        -}
-        quotation =
             { text = "A woman without a man is like a fish without a bicycle."
             , author = "Irina Dunn"
+            }
+        -}
+        quotation =
+            { text = "You know the best thing about necrophilia? You don't have to bring flowers. Yeah, usually they're already there. Isn't that nice? It's nice. It's convenient."
+            , author = "George Carlin"
             }
 
         seed0 =
