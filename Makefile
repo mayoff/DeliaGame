@@ -3,7 +3,7 @@ builddir := ../build
 
 .PHONY: reload
 reload: $(builddir)/index.html
-		./reload-safari.sh
+		./reload-safari.js
 
 .PHONY: clean
 clean:
