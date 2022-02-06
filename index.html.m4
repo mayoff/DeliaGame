@@ -13,15 +13,15 @@ undivert(`mini.js')
 </head>
 <body>
 <script>
-  var randomSeed = new Uint32Array(4);
-  window.crypto.getRandomValues(randomSeed);
-  var app = Elm.Main.init({
-  flags: {
-    'hasMouse': window.matchMedia('(pointer:fine)').matches,
-    'randomSeed': Array.from(randomSeed)
-  }
-  });
+    var randomSeed = new Uint32Array(4);
+    window.crypto.getRandomValues(randomSeed);
 
+    var app = Elm.Main.init({
+        flags: {
+            'hasMouse': window.matchMedia('(pointer:fine)').matches,
+            'randomSeed': Array.from(randomSeed)
+        }
+    });
 </script>
 </body>
 </html>
