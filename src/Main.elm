@@ -221,6 +221,11 @@ makeScrambler inputs seed0 =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    ( applyMsg msg model |> checkSolved, Cmd.none )
+
+
+applyMsg : Msg -> Model -> Model
+applyMsg msg model =
     let
         hoverFor c =
             case model.selected of
@@ -236,24 +241,29 @@ update msg model =
     in
     case msg of
         Click c ->
-            ( applyClick model c, Cmd.none )
+            applyClick model c
 
         Ignore ->
-            ( model, Cmd.none )
+            model
 
         MouseEnter c ->
-            ( { model | hovered = hoverFor c }, Cmd.none )
+            { model | hovered = hoverFor c }
 
         MouseLeave c ->
-            ( { model | hovered = model.hovered |> Maybe2.filter (isnt c) }, Cmd.none )
+            { model | hovered = model.hovered |> Maybe2.filter (isnt c) }
 
         Undo ->
-            ( applyUndo model, Cmd.none )
+            applyUndo model
 
 
 canSwap : Char -> Char -> Bool
 canSwap c d =
     isVowel c == isVowel d
+
+
+isSolved : Model -> Bool
+isSolved model =
+    model.puzzle == model.quotation.text
 
 
 applyClick : Model -> Char -> Model
@@ -271,24 +281,32 @@ applyClick model c =
                     newHovered =
                         model.hovered |> Maybe.map (\_ -> s)
                 in
-                setPuzzle
-                    { model
-                        | selected = Nothing
-                        , hovered = newHovered
-                    }
-                    newPuzzle
+                { model
+                    | selected = Nothing
+                    , hovered = newHovered
+                }
+                    |> setPuzzle newPuzzle
 
             else
                 model
 
 
-setPuzzle : Model -> String -> Model
-setPuzzle model puzzle =
+setPuzzle : String -> Model -> Model
+setPuzzle puzzle model =
     if puzzle == model.puzzle then
         model
 
     else
         { model | puzzle = puzzle, history = model.puzzle :: model.history }
+
+
+checkSolved : Model -> Model
+checkSolved model =
+    if isSolved model then
+        { model | hovered = Nothing, selected = Nothing }
+
+    else
+        model
 
 
 charSwap : Char -> Char -> Char -> Char
@@ -324,8 +342,11 @@ document model =
 view : Model -> Html Msg
 view model =
     let
+        hideIfSolved =
+            Element.transparent <| isSolved model
+
         paragraph s =
-            Element.paragraph [] [ text s ]
+            Element.paragraph [ hideIfSolved ] [ text s ]
 
         verb =
             clickVerb model
@@ -347,11 +368,11 @@ view model =
         ++ clickVerb model
         ++ " the letters in the list!"
         |> paragraph
-    , inventoryView model
+    , inventoryView model |> el [ centerX, hideIfSolved ]
     , "The number under each letter is how many times that letter currently appears in the puzzle. "
         ++ "The numbers will change as you swap letters."
         |> paragraph
-    , undoButton model
+    , undoButton model |> el [ hideIfSolved ]
     ]
         |> column
             [ centerX
@@ -479,8 +500,7 @@ inventoryView model =
             List.map (countedCharView model) countedConsonants |> wrappedRow [ Element.width Element.fill ]
     in
     row
-        [ centerX
-        , unselectable
+        [ unselectable
         , Element.spacing 30
         ]
         [ vowelRow
