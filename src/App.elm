@@ -1,4 +1,4 @@
-port module App exposing (..)
+port module App exposing (main)
 
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
