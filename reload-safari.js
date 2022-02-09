@@ -12,7 +12,7 @@
         }
 
         for (const t of w.tabs()) {
-            if (t.url() === targetUrl) {
+            if (t.url().startsWith(targetUrl)) {
                 safari.doJavaScript('location.reload()', { in: t });
 
                 // Activate the tab.

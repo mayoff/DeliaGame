@@ -1,33 +1,65 @@
-module Main exposing (main)
+module Playing exposing
+    ( Model
+    , Msg
+    , PointerType(..)
+    , init
+    , puzzleDate
+    , puzzleText
+    , update
+    , view
+    )
 
-import Browser exposing (Document)
-import Browser.Navigation as Navigation
-import Dict exposing (Dict)
+import Dict
 import Element exposing (Element, centerX, column, el, padding, row, text, wrappedRow)
 import Element.Background as Background
 import Element.Border as Border
-import Element.Events exposing (onClick, onMouseEnter, onMouseLeave)
+import Element.Events as Events
 import Element.Font as Font
-import Html exposing (Html)
+import Html
 import Html.Attributes
 import Html.Events
-import List.Extra
-import Maybe exposing (withDefault)
 import Maybe.Extra as Maybe2
-import Playing exposing (PointerType)
 import Puzzle exposing (Puzzle)
 import Sha256
-import Tuple
-import Url
 
 
-type alias Model =
+type Model
+    = Model Privates
+
+
+type PointerType
+    = Mouse
+    | Touch
+
+
+type alias Privates =
     { puzzle : Puzzle
     , history : List String
     , hovered : Maybe Char
     , selected : Maybe Char
-    , hasMouse : Bool
+    , pointer : PointerType
     }
+
+
+init : Puzzle -> String -> PointerType -> Model
+init puzzle text pointer =
+    Model
+        { puzzle = { puzzle | text = text }
+        , history = []
+        , hovered = Nothing
+        , selected = Nothing
+        , pointer = pointer
+        }
+
+
+puzzleText : Model -> String
+puzzleText (Model model) =
+    model.puzzle.text
+
+
+puzzleDate : Model -> String
+puzzleDate (Model model) =
+    model.puzzle.date
 
 
 type Msg
@@ -38,62 +70,12 @@ type Msg
     | Undo
 
 
-main : Program AppFlags Model Msg
-main =
-    Browser.application
-        { init = init
-        , onUrlChange = \_ -> Ignore
-        , onUrlRequest = \_ -> Ignore
-        , subscriptions = \_ -> Sub.none
-        , update = update
-        , view = document
-        }
+update : Msg -> Model -> Model
+update msg (Model model) =
+    applyMsg msg model |> checkSolved |> Model
 
 
-type alias AppFlags =
-    { hasMouse : Bool
-    , puzzles : List Puzzle
-    }
-
-
-init : AppFlags -> Url.Url -> Navigation.Key -> ( Model, Cmd Msg )
-init flags _ _ =
-    let
-        dummyPuzzle : Puzzle
-        dummyPuzzle =
-            { author = "Nobody", date = "2001-01-01", hash = "", text = "Missing puzzles!" }
-    in
-    ( { puzzle = flags.puzzles |> List.Extra.last |> withDefault dummyPuzzle
-      , history = []
-      , hovered = Nothing
-      , selected = Nothing
-      , hasMouse = flags.hasMouse
-      }
-    , Cmd.none
-    )
-
-
-vowelList : List Char
-vowelList =
-    "aeiou" |> String.toList
-
-
-isVowel : Char -> Bool
-isVowel c =
-    List.member c vowelList
-
-
-isnt : comparable -> comparable -> Bool
-isnt x y =
-    x /= y
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    ( applyMsg msg model |> checkSolved, Cmd.none )
-
-
-applyMsg : Msg -> Model -> Model
+applyMsg : Msg -> Privates -> Privates
 applyMsg msg model =
     let
         hoverFor c =
@@ -130,12 +112,35 @@ canSwap c d =
     isVowel c == isVowel d
 
 
-isSolved : Model -> Bool
+isnt : comparable -> comparable -> Bool
+isnt x y =
+    x /= y
+
+
+isVowel : Char -> Bool
+isVowel =
+    let
+        vowels =
+            "aeiou" |> String.toList
+    in
+    \c -> List.member c vowels
+
+
+checkSolved : Privates -> Privates
+checkSolved model =
+    if isSolved model then
+        { model | hovered = Nothing, selected = Nothing }
+
+    else
+        model
+
+
+isSolved : Privates -> Bool
 isSolved model =
     Sha256.sha256 model.puzzle.text == model.puzzle.hash
 
 
-applyClick : Model -> Char -> Model
+applyClick : Privates -> Char -> Privates
 applyClick model c =
     case model.selected of
         Nothing ->
@@ -160,29 +165,20 @@ applyClick model c =
                 model
 
 
-setPuzzleText : String -> Model -> Model
+setPuzzleText : String -> Privates -> Privates
 setPuzzleText text model =
-    if text == model.puzzle.text then
+    let
+        puzzle =
+            model.puzzle
+    in
+    if text == puzzle.text then
         model
 
     else
-        let
-            puzzle =
-                model.puzzle
-        in
         { model
             | puzzle = { puzzle | text = text }
-            , history = model.puzzle.text :: model.history
+            , history = puzzle.text :: model.history
         }
-
-
-checkSolved : Model -> Model
-checkSolved model =
-    if isSolved model then
-        { model | hovered = Nothing, selected = Nothing }
-
-    else
-        model
 
 
 charSwap : Char -> Char -> Char -> Char
@@ -199,7 +195,7 @@ charSwap x y z =
     Dict.get z table |> Maybe.withDefault z
 
 
-applyUndo : Model -> Model
+applyUndo : Privates -> Privates
 applyUndo model =
     case model.history of
         first :: rest ->
@@ -216,15 +212,8 @@ applyUndo model =
             model
 
 
-document : Model -> Document Msg
-document model =
-    { title = "Delia's Game"
-    , body = [ view model ]
-    }
-
-
-view : Model -> Html Msg
-view model =
+view : Model -> Element Msg
+view (Model model) =
     let
         hideIfSolved =
             Element.transparent <| isSolved model
@@ -233,7 +222,7 @@ view model =
             Element.paragraph [ hideIfSolved ] [ text s ]
 
         verb =
-            clickVerb model
+            clickVerb model.pointer
     in
     [ "Can you unscramble the letters of the following quotation?" |> paragraph
     , makeTitleCase verb
@@ -249,7 +238,7 @@ view model =
     , "—" ++ model.puzzle.author |> text |> el [ Element.alignRight ]
     , "If you're having trouble finding a letter in the puzzle above, check the list of letters below. "
         ++ "The list only contains letters used in the puzzle. You can also "
-        ++ clickVerb model
+        ++ verb
         ++ " the letters in the list!"
         |> paragraph
     , inventoryView model |> el [ centerX, hideIfSolved ]
@@ -262,43 +251,18 @@ view model =
             [ centerX
             , Element.centerY
             , Element.spacing 30
-            ]
-        |> Element.layout
-            [ style "padding" "3em"
+            , style "padding" "3em"
             ]
 
 
+clickVerb : PointerType -> String
+clickVerb pointer =
+    case pointer of
+        Mouse ->
+            "click"
 
-{--
-hint : Model -> String
-hint model =
-    let
-        pairs =
-            List.map2 (\a b -> ( a, b )) (model.puzzle |> String.toLower |> String.toList) (model.quotation.text |> String.toLower |> String.toList)
-
-        areNotSame ( a, b ) =
-            a /= b
-
-        ( xChar, yChar ) =
-            pairs |> List.filter areNotSame |> List.head |> withDefault ( 'x', 'y' )
-
-        quote c =
-            "‘" ++ String.fromChar c ++ "’"
-
-        ( x, y, verb ) =
-            ( quote xChar, quote yChar, clickVerb model )
-    in
-    "For example, " ++ verb ++ " " ++ x ++ " and " ++ y ++ " to replace every " ++ x ++ " with " ++ y ++ " and vice versa."
---}
-
-
-clickVerb : Model -> String
-clickVerb model =
-    if model.hasMouse then
-        "click"
-
-    else
-        "tap"
+        Touch ->
+            "tap"
 
 
 makeTitleCase : String -> String
@@ -306,7 +270,7 @@ makeTitleCase s =
     String.append (s |> String.left 1 |> String.toUpper) (s |> String.dropLeft 1)
 
 
-undoButton : Model -> Element Msg
+undoButton : Privates -> Element Msg
 undoButton model =
     Html.button
         [ Html.Events.onClick Undo
@@ -322,6 +286,7 @@ undoButton model =
             ]
 
 
+puzzleView : Privates -> Element Msg
 puzzleView model =
     let
         words =
@@ -343,7 +308,7 @@ puzzleView model =
             (charStyle ++ [ centerX, unselectable ])
 
 
-wordView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> String -> Element Msg
+wordView : Privates -> String -> Element Msg
 wordView model word =
     word
         |> String.toList
@@ -351,7 +316,7 @@ wordView model word =
         |> row [ unselectable ]
 
 
-inventoryView : Model -> Element Msg
+inventoryView : Privates -> Element Msg
 inventoryView model =
     let
         incrementCount maybeCount =
@@ -392,7 +357,7 @@ inventoryView model =
         ]
 
 
-countedCharView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> ( Char, Int ) -> Element Msg
+countedCharView : Privates -> ( Char, Int ) -> Element Msg
 countedCharView model ( c, count ) =
     column
         []
@@ -408,7 +373,7 @@ countedCharView model ( c, count ) =
         ]
 
 
-charView : { a | hasMouse : Bool, hovered : Maybe Char, selected : Maybe Char } -> Char -> Element Msg
+charView : Privates -> Char -> Element Msg
 charView model c =
     let
         cLower =
@@ -433,19 +398,20 @@ charView model c =
                     "grab"
 
         hoverEvents =
-            if model.hasMouse then
-                [ onMouseEnter (MouseEnter cLower)
-                , onMouseLeave (MouseLeave cLower)
-                , cursor cursorName
-                ]
+            case model.pointer of
+                Touch ->
+                    []
 
-            else
-                []
+                Mouse ->
+                    [ Events.onMouseEnter (MouseEnter cLower)
+                    , Events.onMouseLeave (MouseLeave cLower)
+                    , cursor cursorName
+                    ]
 
         extras =
             if Char.isAlpha c then
                 hoverEvents
-                    ++ [ onClick (Click cLower)
+                    ++ [ Events.onClick (Click cLower)
                        , style "touch-action" "manipulation"
                        ]
 

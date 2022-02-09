@@ -14,7 +14,7 @@ undivert(`mini.js')
     {
         const puzzles_json = undivert(`puzzles.json');
 
-        var app = Elm.Main.init({
+        var app = Elm.App.init({
             flags: {
                 'hasMouse': window.matchMedia('(pointer:fine)').matches,
                 'puzzles': puzzles_json.puzzles,

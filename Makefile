@@ -18,7 +18,7 @@ $(builddir)/mini.js: $(builddir)/main.js
 		mv $@.new $@
 
 $(builddir)/main.js: elm.json $(wildcard src/*.elm)
-		elm make --output=$(dir $@)new.$(notdir $@) src/Main.elm
+		elm make --output=$(dir $@)new.$(notdir $@) src/App.elm
 		mv $(dir $@)new.$(notdir $@) $@
 
 $(builddir):
