@@ -251,7 +251,6 @@ view (Model model) =
             [ centerX
             , Element.centerY
             , Element.spacing 30
-            , style "padding" "3em"
             ]
 
 

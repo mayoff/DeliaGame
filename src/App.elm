@@ -3,9 +3,11 @@ port module App exposing (..)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Element exposing (Element)
+import Element.Events
 import Element.Font as Font
 import Element.Lazy
 import Html exposing (Html)
+import Html.Attributes
 import Json.Decode as D
 import Json.Encode as E
 import List.Extra as List2
@@ -27,8 +29,7 @@ type alias Model =
 
 
 type Msg
-    = DateWasClicked String
-    | LinkWasClicked UrlRequest
+    = LinkWasClicked UrlRequest
     | PlayingMsg Playing.Msg
     | DidReceiveJavascriptResponse E.Value
     | UrlDidChange Url
@@ -73,7 +74,7 @@ port javascriptRequest : E.Value -> Cmd msg
 
 type alias DidGetTextResponse =
     { date : String
-    , text : String
+    , maybeText : Maybe String
     }
 
 
@@ -87,7 +88,7 @@ decodeJavascriptResponse =
         didGetTextDecoder =
             D.map2 DidGetTextResponse
                 (D.field "date" D.string)
-                (D.field "text" D.string)
+                (D.field "text" (D.nullable D.string))
 
         decoder =
             D.field "type" D.string
@@ -140,25 +141,27 @@ init flags url key =
             , url = url
             }
 
-        route =
+        ( route, cmd ) =
             dateForUrl url |> routeForDate model0
 
         model1 =
             { model0 | route = route }
     in
     ( model1
-    , updateUrlCmd model1
+    , Cmd.batch [ updateUrlCmd model1, cmd ]
     )
 
 
-routeForDate : Model -> Maybe String -> Route
+routeForDate : Model -> Maybe String -> ( Route, Cmd Msg )
 routeForDate model maybeDate =
     case puzzleForDate model.puzzles maybeDate of
         Nothing ->
-            NoPuzzlesRoute
+            pure NoPuzzlesRoute
 
         Just puzzle ->
-            PlayingRoute (Playing.init puzzle puzzle.text model.pointer)
+            ( LoadingRoute puzzle
+            , GetText { date = puzzle.date } |> encodeJavascriptRequest |> javascriptRequest
+            )
 
 
 dateForUrl : Url -> Maybe String
@@ -170,11 +173,6 @@ dateForUrl =
                 <?> QP.string "date"
     in
     UP.parse parser >> Maybe2.join
-
-
-puzzleForUrl : List Puzzle -> Url -> Maybe Puzzle
-puzzleForUrl puzzles url =
-    dateForUrl url |> puzzleForDate puzzles
 
 
 puzzleForDate : List Puzzle -> Maybe String -> Maybe Puzzle
@@ -247,9 +245,6 @@ update msg model =
 applyMsg : Msg -> Model -> ( Model, Cmd Msg )
 applyMsg msg model =
     case msg of
-        DateWasClicked date ->
-            dateWasClicked date model
-
         LinkWasClicked request ->
             linkWasClicked request model
 
@@ -294,14 +289,9 @@ applyPlayingMsg msg model playing =
     )
 
 
-dateWasClicked : String -> Model -> ( Model, Cmd Msg )
-dateWasClicked date model =
-    pure { model | route = routeForDate model (Just date) }
-
-
 linkWasClicked : UrlRequest -> Model -> ( Model, Cmd Msg )
 linkWasClicked request model =
-    case request of
+    case Debug.log "UrlRequest" request of
         Browser.Internal url ->
             ( model, Nav.pushUrl model.navigationKey (Url.toString url) )
 
@@ -312,22 +302,24 @@ linkWasClicked request model =
 didReceiveJavascriptResponse : D.Value -> Model -> ( Model, Cmd Msg )
 didReceiveJavascriptResponse value model =
     case ( decodeJavascriptResponse value, model.route ) of
-        ( Just (DidGetText { date, text }), LoadingRoute puzzle ) ->
-            if puzzle.date /= date then
-                ( model, Cmd.none )
+        ( Just (DidGetText { date, maybeText }), LoadingRoute puzzle ) ->
+            if puzzle.date == date then
+                pure { model | route = PlayingRoute (Playing.init puzzle (maybeText |> Maybe.withDefault puzzle.text) model.pointer) }
 
             else
-                ( { model | route = PlayingRoute (Playing.init puzzle text model.pointer) }
-                , Cmd.none
-                )
+                pure model
 
         _ ->
-            ( model, Cmd.none )
+            pure model
 
 
 urlDidChange : Url -> Model -> ( Model, Cmd Msg )
 urlDidChange url model =
-    pure { model | route = routeForDate model (dateForUrl url), url = url }
+    let
+        ( route, cmd ) =
+            routeForDate model (dateForUrl url)
+    in
+    ( { model | route = route, url = url }, cmd )
 
 
 
@@ -367,7 +359,7 @@ view model =
         ( element, dayPicker ) =
             case model.route of
                 LoadingRoute puzzle ->
-                    ( Element.text (puzzle.date ++ " (Loading)")
+                    ( Element.text "(Loading)" |> Element.el [ Element.centerX ]
                     , dayPickerForDate puzzle.date
                     )
 
@@ -382,11 +374,16 @@ view model =
                     , dayPickerForDate (Playing.puzzleDate playing)
                     )
     in
-    Element.column []
+    Element.column
+        [ Element.width Element.fill
+        , Element.spacing 30
+        ]
         [ dayPicker
         , element
         ]
-        |> Element.layout []
+        |> Element.layout
+            [ style "padding" "3em"
+            ]
 
 
 dayPickerView url currentDate puzzles =
@@ -422,27 +419,37 @@ dayPickerView url currentDate puzzles =
         dates =
             List.foldl pickDates { prior = Nothing, next = Nothing } puzzles
     in
-    Element.row
-        [ Element.spacing 30
-        , Element.centerX
-        , Element.padding 30
-        ]
-        [ dates.prior |> Maybe.map (urlSetDate url) |> dayLink "Previous"
-        , Element.text currentDate
-        , dates.next |> Maybe.map (urlSetDate url) |> dayLink "Next"
-        ]
+    [ dates.prior |> Maybe.map (urlSetDate url) |> dayLink "Previous"
+    , Element.text currentDate
+    , dates.next |> Maybe.map (urlSetDate url) |> dayLink "Next"
+    ]
+        |> Element.row
+            [ Element.spacing 30
+            , Element.centerX
+            ]
 
 
 dayLink : String -> Maybe Url -> Element Msg
 dayLink label maybeUrl =
-    Element.link
-        [ Element.transparent (Maybe2.isNothing maybeUrl)
-        ]
-        { url = maybeUrl |> Maybe.map Url.toString |> Maybe.withDefault ""
-        , label =
+    let
+        labelElement =
             Element.text label
                 |> Element.el
                     [ Font.color <| Element.rgb 0.2 0.2 1.0
                     , Font.underline
                     ]
-        }
+    in
+    case maybeUrl of
+        Nothing ->
+            labelElement |> Element.el [ Element.transparent True ]
+
+        Just url ->
+            Element.link []
+                { url = Url.toString url
+                , label = labelElement
+                }
+
+
+style : String -> String -> Element.Attribute msg
+style name value =
+    Element.htmlAttribute <| Html.Attributes.style name value

@@ -30,6 +30,19 @@ undivert([[mini.js]])
             switch (request.type) {
                 case 'SetText':
                     localStorage.setItem(keyForDate(request.date), request.text);
+                    break;
+
+                case 'GetText':
+                    const text = localStorage.getItem(keyForDate(request.date));
+                    app.ports.javascriptResponse.send({
+                        date: request.date,
+                        text: text,
+                        type: 'DidGetText'
+                    });
+                    break;
+
+                default:
+                    break;
             }
         });
     }

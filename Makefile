@@ -15,6 +15,7 @@ $(builddir)/index.html: index.html.m4 $(builddir)/mini.js puzzles.json
 
 $(builddir)/mini.js: $(builddir)/main.js
 		closure-compiler --js_output_file $@.new $^
+		#cp $^ $@.new
 		mv $@.new $@
 
 $(builddir)/main.js: elm.json $(wildcard src/*.elm)
