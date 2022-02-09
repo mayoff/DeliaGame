@@ -245,7 +245,7 @@ view (Model model) =
     , "The number under each letter is how many times that letter currently appears in the puzzle. "
         ++ "The numbers will change as you swap letters."
         |> paragraph
-    , undoButton model |> el [ hideIfSolved ]
+    , undoButton model |> el [ hideIfSolved, centerX ]
     ]
         |> column
             [ centerX
@@ -280,9 +280,7 @@ undoButton model =
         ]
         |> Element.html
         |> el
-            [ centerX
-            , unselectable
-            ]
+            [ unselectable ]
 
 
 puzzleView : Privates -> Element Msg
