@@ -8,16 +8,28 @@
 <body>
 <script>
 //<![CDATA[
-undivert(`mini.js')
+changequote(`[[', `]]');
+undivert([[mini.js]])
 //]]>
 
     {
-        const puzzles_json = undivert(`puzzles.json');
+        'use strict';
 
-        var app = Elm.App.init({
+        const puzzles_json = undivert([[puzzles.json]]);
+
+        const app = Elm.App.init({
             flags: {
                 'hasMouse': window.matchMedia('(pointer:fine)').matches,
                 'puzzles': puzzles_json.puzzles,
+            }
+        });
+
+        function keyForDate(date) { return `text-${date}`; }
+
+        app.ports.javascriptRequest.subscribe(function (request) {
+            switch (request.type) {
+                case 'SetText':
+                    localStorage.setItem(keyForDate(request.date), request.text);
             }
         });
     }

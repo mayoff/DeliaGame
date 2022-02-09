@@ -48,6 +48,7 @@ type alias AppFlags =
 
 type JavascriptRequest
     = GetText { date : String }
+    | SetText { date : String, text : String }
 
 
 encodeJavascriptRequest : JavascriptRequest -> E.Value
@@ -56,11 +57,18 @@ encodeJavascriptRequest request =
         GetText { date } ->
             E.object
                 [ ( "date", E.string date )
-                , ( "type", E.string "getText" )
+                , ( "type", E.string "GetText" )
+                ]
+
+        SetText { date, text } ->
+            E.object
+                [ ( "date", E.string date )
+                , ( "text", E.string text )
+                , ( "type", E.string "SetText" )
                 ]
 
 
-port javascriptRequests : E.Value -> Cmd msg
+port javascriptRequest : E.Value -> Cmd msg
 
 
 type alias DidGetTextResponse =
@@ -86,7 +94,7 @@ decodeJavascriptResponse =
                 |> D.andThen
                     (\responseType ->
                         case responseType of
-                            "didGetText" ->
+                            "DidGetText" ->
                                 D.map DidGetText didGetTextDecoder
 
                             _ ->
@@ -96,7 +104,7 @@ decodeJavascriptResponse =
     D.decodeValue decoder >> Result.toMaybe
 
 
-port javascriptResponses : (D.Value -> msg) -> Sub msg
+port javascriptResponse : (D.Value -> msg) -> Sub msg
 
 
 main : Program AppFlags Model Msg
@@ -106,7 +114,9 @@ main =
         , onUrlChange = UrlDidChange
         , onUrlRequest = LinkWasClicked
         , subscriptions = subscriptions
-        , update = update -- << Debug.log "update"
+        , update = update
+
+        --, update = \msg model -> update (Debug.log "msg" msg) model |> Debug.log "result"
         , view = document
         }
 
@@ -213,7 +223,7 @@ updateUrlWithDateCmd model date =
 
 subscriptions : Model -> Sub.Sub Msg
 subscriptions _ =
-    javascriptResponses DidReceiveJavascriptResponse
+    javascriptResponse DidReceiveJavascriptResponse
 
 
 
@@ -246,10 +256,7 @@ applyMsg msg model =
         PlayingMsg playingMsg ->
             case model.route of
                 PlayingRoute playingModel ->
-                    pure
-                        { model
-                            | route = PlayingRoute (Playing.update playingMsg playingModel)
-                        }
+                    applyPlayingMsg playingMsg model playingModel
 
                 _ ->
                     pure model
@@ -259,6 +266,32 @@ applyMsg msg model =
 
         UrlDidChange url ->
             urlDidChange url model
+
+
+applyPlayingMsg : Playing.Msg -> Model -> Playing.Model -> ( Model, Cmd Msg )
+applyPlayingMsg msg model playing =
+    let
+        oldText =
+            Playing.puzzleText playing
+
+        newPlaying =
+            Playing.update msg playing
+
+        saveCmd =
+            if oldText == Playing.puzzleText newPlaying then
+                Cmd.none
+
+            else
+                SetText
+                    { date = Playing.puzzleDate newPlaying
+                    , text = Playing.puzzleText newPlaying
+                    }
+                    |> encodeJavascriptRequest
+                    |> javascriptRequest
+    in
+    ( { model | route = PlayingRoute newPlaying }
+    , saveCmd
+    )
 
 
 dateWasClicked : String -> Model -> ( Model, Cmd Msg )
