@@ -31,5 +31,5 @@ build:
 
 .PHONY: scramble
 scramble:
-		swift run scramble puzzles.json > puzzles.json.new
+		(cd swift-tools && swift run scramble ../puzzles.json) > puzzles.json.new
 		mv puzzles.json.new puzzles.json
