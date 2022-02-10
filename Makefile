@@ -1,29 +1,33 @@
 
-builddir := ../build
-
 .PHONY: reload
-reload: $(builddir)/index.html
+reload: build/index.html
 		./reload-safari.js
 
 .PHONY: clean
 clean:
-		rm -rf $(builddir)
+		rm -rf build
 
-$(builddir)/index.html: index.html.m4 $(builddir)/mini.js puzzles.json
-		m4 -I$(builddir) $< > $@.new
+public: build/index.html
+		rm -rf $@
+		mkdir -p $@.new
+		cp $< $@.new
 		mv $@.new $@
 
-$(builddir)/mini.js: $(builddir)/main.js
+build/index.html: index.html.m4 build/mini.js puzzles.json
+		m4 -Ibuild $< > $@.new
+		mv $@.new $@
+
+build/mini.js: build/main.js
 		closure-compiler --js_output_file $@.new $^
 		#cp $^ $@.new
 		mv $@.new $@
 
-$(builddir)/main.js: elm.json $(wildcard src/*.elm)
+build/main.js: elm.json $(wildcard src/*.elm)
 		elm make --output=$(dir $@)new.$(notdir $@) src/App.elm
 		mv $(dir $@)new.$(notdir $@) $@
 
-$(builddir):
-		mkdir -p $(builddir)
+build:
+		mkdir -p build
 
 .PHONY: scramble
 scramble:
