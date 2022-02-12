@@ -19,7 +19,7 @@ import Html
 import Html.Attributes
 import Html.Events
 import Maybe.Extra as Maybe2
-import Puzzle exposing (Puzzle)
+import Puzzle exposing (Date, Puzzle)
 import Sha256
 
 
@@ -57,7 +57,7 @@ puzzleText (Model model) =
     model.puzzle.text
 
 
-puzzleDate : Model -> String
+puzzleDate : Model -> Date
 puzzleDate (Model model) =
     model.puzzle.date
 

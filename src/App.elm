@@ -3,7 +3,6 @@ port module App exposing (main)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Element exposing (Element)
-import Element.Events
 import Element.Font as Font
 import Element.Lazy
 import Html exposing (Html)
@@ -13,7 +12,7 @@ import Json.Encode as E
 import List.Extra as List2
 import Maybe.Extra as Maybe2
 import Playing exposing (PointerType)
-import Puzzle exposing (Puzzle)
+import Puzzle exposing (Date, Puzzle)
 import Url exposing (Url)
 import Url.Parser as UP exposing ((</>), (<?>))
 import Url.Parser.Query as QP
@@ -48,8 +47,8 @@ type alias AppFlags =
 
 
 type JavascriptRequest
-    = GetText { date : String }
-    | SetText { date : String, text : String }
+    = GetText { date : Date }
+    | SetText { date : Date, text : String }
 
 
 encodeJavascriptRequest : JavascriptRequest -> E.Value
@@ -73,7 +72,7 @@ port javascriptRequest : E.Value -> Cmd msg
 
 
 type alias DidGetTextResponse =
-    { date : String
+    { date : Date
     , maybeText : Maybe String
     }
 
@@ -152,7 +151,7 @@ init flags url key =
     )
 
 
-routeForDate : Model -> Maybe String -> ( Route, Cmd Msg )
+routeForDate : Model -> Maybe Date -> ( Route, Cmd Msg )
 routeForDate model maybeDate =
     case puzzleForDate model.puzzles maybeDate of
         Nothing ->
@@ -164,7 +163,7 @@ routeForDate model maybeDate =
             )
 
 
-dateForUrl : Url -> Maybe String
+dateForUrl : Url -> Maybe Date
 dateForUrl =
     let
         parser =
@@ -175,7 +174,7 @@ dateForUrl =
     UP.parse parser >> Maybe2.join
 
 
-puzzleForDate : List Puzzle -> Maybe String -> Maybe Puzzle
+puzzleForDate : List Puzzle -> Maybe Date -> Maybe Puzzle
 puzzleForDate puzzles maybeDate =
     maybeDate
         |> Maybe.andThen (\date -> List2.find (\puzzle -> puzzle.date == date) puzzles)
@@ -195,12 +194,12 @@ updateUrlCmd model =
             updateUrlWithDateCmd model puzzle.date
 
 
-urlSetDate : Url -> String -> Url
+urlSetDate : Url -> Date -> Url
 urlSetDate url date =
     { url | query = Just ("date=" ++ date) }
 
 
-updateUrlWithDateCmd : Model -> String -> Cmd Msg
+updateUrlWithDateCmd : Model -> Date -> Cmd Msg
 updateUrlWithDateCmd model date =
     let
         oldUrl =
@@ -386,9 +385,10 @@ view model =
             ]
 
 
+dayPickerView : Url -> Date -> List Puzzle -> Element Msg
 dayPickerView url currentDate puzzles =
     let
-        pickPrior : String -> Maybe String -> Maybe String
+        pickPrior : Date -> Maybe Date -> Maybe Date
         pickPrior date prior =
             case ( date < currentDate, prior ) of
                 ( False, _ ) ->
@@ -400,7 +400,7 @@ dayPickerView url currentDate puzzles =
                 ( True, Just priorDate ) ->
                     Just (max date priorDate)
 
-        pickNext : String -> Maybe String -> Maybe String
+        pickNext : Date -> Maybe Date -> Maybe Date
         pickNext date next =
             case ( date > currentDate, next ) of
                 ( False, _ ) ->
@@ -412,10 +412,11 @@ dayPickerView url currentDate puzzles =
                 ( True, Just nextDate ) ->
                     Just (min date nextDate)
 
-        pickDates : Puzzle -> { prior : Maybe String, next : Maybe String } -> { prior : Maybe String, next : Maybe String }
+        pickDates : Puzzle -> { prior : Maybe Date, next : Maybe Date } -> { prior : Maybe Date, next : Maybe Date }
         pickDates { date } { prior, next } =
             { prior = pickPrior date prior, next = pickNext date next }
 
+        dates : { prior : Maybe Date, next : Maybe Date }
         dates =
             List.foldl pickDates { prior = Nothing, next = Nothing } puzzles
     in
