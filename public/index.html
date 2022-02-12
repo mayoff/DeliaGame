@@ -5217,6 +5217,11 @@ var $elm$core$Task$perform = F2(
 	});
 var $elm$browser$Browser$application = _Browser_application;
 var $elm$json$Json$Decode$bool = _Json_decodeBool;
+var $elm$core$Basics$composeR = F3(
+	function (f, g, x) {
+		return g(
+			f(x));
+	});
 var $author$project$Playing$puzzleDate = function (_v0) {
 	var model = _v0.a;
 	return model.puzzle.date;
@@ -11561,11 +11566,6 @@ var $author$project$Playing$clickVerb = function (pointer) {
 		return 'tap';
 	}
 };
-var $elm$core$Basics$composeR = F3(
-	function (f, g, x) {
-		return g(
-			f(x));
-	});
 var $mdgriffith$elm_ui$Element$Font$family = function (families) {
 	return A2(
 		$mdgriffith$elm_ui$Internal$Model$StyleClass,
@@ -13366,32 +13366,6 @@ var $elm$url$Url$Parser$questionMark = F2(
 			parser,
 			$elm$url$Url$Parser$query(queryParser));
 	});
-var $elm$url$Url$Parser$s = function (str) {
-	return $elm$url$Url$Parser$Parser(
-		function (_v0) {
-			var visited = _v0.visited;
-			var unvisited = _v0.unvisited;
-			var params = _v0.params;
-			var frag = _v0.frag;
-			var value = _v0.value;
-			if (!unvisited.b) {
-				return _List_Nil;
-			} else {
-				var next = unvisited.a;
-				var rest = unvisited.b;
-				return _Utils_eq(next, str) ? _List_fromArray(
-					[
-						A5(
-						$elm$url$Url$Parser$State,
-						A2($elm$core$List$cons, next, visited),
-						rest,
-						params,
-						frag,
-						value)
-					]) : _List_Nil;
-			}
-		});
-};
 var $elm$url$Url$Parser$Internal$Parser = function (a) {
 	return {$: 'Parser', a: a};
 };
@@ -13419,18 +13393,25 @@ var $elm$url$Url$Parser$Query$string = function (key) {
 			}
 		});
 };
+var $elm$url$Url$Parser$top = $elm$url$Url$Parser$Parser(
+	function (state) {
+		return _List_fromArray(
+			[state]);
+	});
 var $author$project$App$dateForUrl = function () {
 	var parser = A2(
-		$elm$url$Url$Parser$slash,
-		$elm$url$Url$Parser$s('~mayoff'),
-		A2(
-			$elm$url$Url$Parser$questionMark,
-			$elm$url$Url$Parser$s('DeliaGame'),
-			$elm$url$Url$Parser$Query$string('date')));
-	return A2(
-		$elm$core$Basics$composeR,
-		$elm$url$Url$Parser$parse(parser),
-		$elm_community$maybe_extra$Maybe$Extra$join);
+		$elm$url$Url$Parser$questionMark,
+		$elm$url$Url$Parser$top,
+		$elm$url$Url$Parser$Query$string('date'));
+	return function (url) {
+		return $elm_community$maybe_extra$Maybe$Extra$join(
+			A2(
+				$elm$url$Url$Parser$parse,
+				parser,
+				_Utils_update(
+					url,
+					{path: '/'})));
+	};
 }();
 var $author$project$Puzzle$dateFromIsoDateTime = function (string) {
 	return (true && (A2(
@@ -13589,16 +13570,21 @@ var $author$project$App$routeForDate = F2(
 							{date: puzzle.date}))));
 		}
 	});
+var $elm$core$Debug$log = _Debug_log;
 var $elm$browser$Browser$Navigation$pushUrl = _Browser_pushUrl;
 var $elm$browser$Browser$Navigation$replaceUrl = _Browser_replaceUrl;
 var $author$project$App$updateUrlWithDateCmd = F2(
 	function (model, date) {
 		var oldUrl = model.url;
 		var newUrl = A2($author$project$App$urlSetDate, oldUrl, date);
-		return _Utils_eq(newUrl.query, model.url.query) ? $elm$core$Platform$Cmd$none : (_Utils_eq(model.url.query, $elm$core$Maybe$Nothing) ? A2(
+		return _Utils_eq(newUrl.query, model.url.query) ? A2($elm$core$Debug$log, 'updateUrl none', $elm$core$Platform$Cmd$none) : (_Utils_eq(model.url.query, $elm$core$Maybe$Nothing) ? A4(
+			$elm$core$Debug$log,
+			'replaceUrl ' + $elm$url$Url$toString(newUrl),
 			$elm$browser$Browser$Navigation$replaceUrl,
 			model.navigationKey,
-			$elm$url$Url$toString(newUrl)) : A2(
+			$elm$url$Url$toString(newUrl)) : A4(
+			$elm$core$Debug$log,
+			'pushUrl ' + $elm$url$Url$toString(newUrl),
 			$elm$browser$Browser$Navigation$pushUrl,
 			model.navigationKey,
 			$elm$url$Url$toString(newUrl)));
@@ -13950,12 +13936,10 @@ var $author$project$App$didReceiveJavascriptResponse = F2(
 		}
 	});
 var $elm$browser$Browser$Navigation$load = _Browser_load;
-var $elm$core$Debug$log = _Debug_log;
 var $author$project$App$linkWasClicked = F2(
 	function (request, model) {
-		var _v0 = A2($elm$core$Debug$log, 'UrlRequest', request);
-		if (_v0.$ === 'Internal') {
-			var url = _v0.a;
+		if (request.$ === 'Internal') {
+			var url = request.a;
 			return _Utils_Tuple2(
 				model,
 				A2(
@@ -13963,7 +13947,7 @@ var $author$project$App$linkWasClicked = F2(
 					model.navigationKey,
 					$elm$url$Url$toString(url)));
 		} else {
-			var string = _v0.a;
+			var string = request.a;
 			return _Utils_Tuple2(
 				model,
 				$elm$browser$Browser$Navigation$load(string));
@@ -13974,7 +13958,10 @@ var $author$project$App$urlDidChange = F2(
 		var _v0 = A2(
 			$author$project$App$routeForDate,
 			model,
-			$author$project$App$dateForUrl(url));
+			A2(
+				$elm$core$Debug$log,
+				'urlDidChange>dateForUrl',
+				$author$project$App$dateForUrl(url)));
 		var route = _v0.a;
 		var cmd = _v0.b;
 		return _Utils_Tuple2(
@@ -14021,7 +14008,17 @@ var $author$project$App$update = F2(
 					])));
 	});
 var $author$project$App$main = $elm$browser$Browser$application(
-	{init: $author$project$App$init, onUrlChange: $author$project$App$UrlDidChange, onUrlRequest: $author$project$App$LinkWasClicked, subscriptions: $author$project$App$subscriptions, update: $author$project$App$update, view: $author$project$App$document});
+	{
+		init: $author$project$App$init,
+		onUrlChange: $author$project$App$UrlDidChange,
+		onUrlRequest: $author$project$App$LinkWasClicked,
+		subscriptions: $author$project$App$subscriptions,
+		update: A2(
+			$elm$core$Basics$composeR,
+			$elm$core$Debug$log('msg'),
+			$author$project$App$update),
+		view: $author$project$App$document
+	});
 _Platform_export({'App':{'init':$author$project$App$main(
 	A2(
 		$elm$json$Json$Decode$andThen,

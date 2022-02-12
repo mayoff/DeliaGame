@@ -115,7 +115,7 @@ main =
         , onUrlChange = UrlDidChange
         , onUrlRequest = LinkWasClicked
         , subscriptions = subscriptions
-        , update = update
+        , update = Debug.log "msg" >> update
 
         --, update = \msg model -> update (Debug.log "msg" msg) model |> Debug.log "result"
         , view = document
@@ -174,11 +174,12 @@ dateForUrl : Url -> Maybe Date
 dateForUrl =
     let
         parser =
-            UP.s "~mayoff"
-                </> UP.s "DeliaGame"
+            UP.top
                 <?> QP.string "date"
     in
-    UP.parse parser >> Maybe2.join
+    \url ->
+        -- I don't actually care about the path, just the query params.
+        { url | path = "/" } |> UP.parse parser |> Maybe2.join
 
 
 puzzleForDate : List Puzzle -> Maybe Date -> Maybe Puzzle
@@ -216,13 +217,13 @@ updateUrlWithDateCmd model date =
             urlSetDate oldUrl date
     in
     if newUrl.query == model.url.query then
-        Cmd.none
+        Debug.log "updateUrl none" Cmd.none
 
     else if model.url.query == Nothing then
-        Nav.replaceUrl model.navigationKey (Url.toString newUrl)
+        Debug.log ("replaceUrl " ++ Url.toString newUrl) Nav.replaceUrl model.navigationKey (Url.toString newUrl)
 
     else
-        Nav.pushUrl model.navigationKey (Url.toString newUrl)
+        Debug.log ("pushUrl " ++ Url.toString newUrl) Nav.pushUrl model.navigationKey (Url.toString newUrl)
 
 
 subscriptions : Model -> Sub.Sub Msg
@@ -297,7 +298,7 @@ applyPlayingMsg msg model playing =
 
 linkWasClicked : UrlRequest -> Model -> ( Model, Cmd Msg )
 linkWasClicked request model =
-    case Debug.log "UrlRequest" request of
+    case request of
         Browser.Internal url ->
             ( model, Nav.pushUrl model.navigationKey (Url.toString url) )
 
@@ -323,7 +324,7 @@ urlDidChange : Url -> Model -> ( Model, Cmd Msg )
 urlDidChange url model =
     let
         ( route, cmd ) =
-            routeForDate model (dateForUrl url)
+            routeForDate model (Debug.log "urlDidChange>dateForUrl" (dateForUrl url))
     in
     ( { model | route = route, url = url }, cmd )
 
