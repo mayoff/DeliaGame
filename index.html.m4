@@ -20,6 +20,7 @@ undivert([[mini.js]])
         const app = Elm.App.init({
             flags: {
                 'hasMouse': window.matchMedia('(pointer:fine)').matches,
+                'isoDateTime': new Date().toISOString(),
                 'puzzles': puzzles_json.puzzles,
             }
         });

@@ -12,7 +12,7 @@ import Json.Encode as E
 import List.Extra as List2
 import Maybe.Extra as Maybe2
 import Playing exposing (PointerType)
-import Puzzle exposing (Date, Puzzle)
+import Puzzle exposing (Date, Puzzle, dateFromIsoDateTime)
 import Url exposing (Url)
 import Url.Parser as UP exposing ((</>), (<?>))
 import Url.Parser.Query as QP
@@ -41,7 +41,8 @@ type Route
 
 
 type alias AppFlags =
-    { hasMouse : Bool
+    { isoDateTime : String
+    , hasMouse : Bool
     , puzzles : List Puzzle
     }
 
@@ -124,6 +125,12 @@ main =
 init : AppFlags -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
+        date =
+            dateFromIsoDateTime flags.isoDateTime
+
+        puzzles =
+            flags.puzzles |> List.filter (\puzzle -> puzzle.date <= date)
+
         pointer =
             if flags.hasMouse then
                 Playing.Mouse
@@ -135,7 +142,7 @@ init flags url key =
         model0 =
             { navigationKey = key
             , pointer = pointer
-            , puzzles = flags.puzzles
+            , puzzles = puzzles
             , route = NoPuzzlesRoute
             , url = url
             }
