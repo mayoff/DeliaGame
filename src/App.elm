@@ -115,7 +115,7 @@ main =
         , onUrlChange = UrlDidChange
         , onUrlRequest = LinkWasClicked
         , subscriptions = subscriptions
-        , update = Debug.log "msg" >> update
+        , update = update
 
         --, update = \msg model -> update (Debug.log "msg" msg) model |> Debug.log "result"
         , view = document
@@ -217,13 +217,13 @@ updateUrlWithDateCmd model date =
             urlSetDate oldUrl date
     in
     if newUrl.query == model.url.query then
-        Debug.log "updateUrl none" Cmd.none
+        Cmd.none
 
     else if model.url.query == Nothing then
-        Debug.log ("replaceUrl " ++ Url.toString newUrl) Nav.replaceUrl model.navigationKey (Url.toString newUrl)
+        Nav.replaceUrl model.navigationKey (Url.toString newUrl)
 
     else
-        Debug.log ("pushUrl " ++ Url.toString newUrl) Nav.pushUrl model.navigationKey (Url.toString newUrl)
+        Nav.pushUrl model.navigationKey (Url.toString newUrl)
 
 
 subscriptions : Model -> Sub.Sub Msg
@@ -324,7 +324,7 @@ urlDidChange : Url -> Model -> ( Model, Cmd Msg )
 urlDidChange url model =
     let
         ( route, cmd ) =
-            routeForDate model (Debug.log "urlDidChange>dateForUrl" (dateForUrl url))
+            routeForDate model (dateForUrl url)
     in
     ( { model | route = route, url = url }, cmd )
 

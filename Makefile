@@ -1,32 +1,45 @@
 
+#debug = 1
+
+ifdef debug
+buildDir = build.debug
+elmOptions = --debug
+else
+buildDir = build.release
+elmOptions = --optimize
+endif
+
 .PHONY: reload
-reload: public
+reload: public Makefile
 		./reload-safari.js
 
 .PHONY: clean
 clean:
-		rm -rf build public
+		git clean -fdx
 
-public: build/index.html
+public: $(buildDir)/index.html Makefile
 		rm -rf $@
 		mkdir -p $@.new
 		cp $< $@.new
 		mv $@.new $@
 
-build/index.html: index.html.m4 build/mini.js puzzles.json
-		mkdir -p build
-		m4 -Ibuild $< > $@.new
+$(buildDir)/index.html: index.html.m4 $(buildDir)/mini.js puzzles.json Makefile
+		mkdir -p $(buildDir)
+		m4 -I$(buildDir) $< > $@.new
 		mv $@.new $@
 
-build/mini.js: build/main.js
+$(buildDir)/mini.js: $(buildDir)/main.js Makefile
 		mkdir -p build
-		#closure-compiler --js_output_file $@.new $^
+ifdef debug
 		cp $^ $@.new
+else
+		closure-compiler --js_output_file $@.new $<
+endif
 		mv $@.new $@
 
-build/main.js: elm.json $(wildcard src/*.elm)
-		mkdir -p build
-		elm make --output=$(dir $@)new.$(notdir $@) src/App.elm
+$(buildDir)/main.js: elm.json $(wildcard src/*.elm) Makefile
+		mkdir -p $(buildDir)
+		elm make $(elmOptions) --output=$(dir $@)new.$(notdir $@) src/App.elm
 		mv $(dir $@)new.$(notdir $@) $@
 
 .PHONY: scramble

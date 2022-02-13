@@ -9,8 +9,7 @@ type alias Date =
 dateFromIsoDateTime : String -> Date
 dateFromIsoDateTime string =
     if
-        True
-            && (string |> String.left 4 |> String.all Char.isDigit)
+        (string |> String.left 4 |> String.all Char.isDigit)
             && (string |> String.dropLeft 4 |> String.startsWith "-")
             && (string |> String.dropLeft 5 |> String.left 2 |> String.all Char.isDigit)
             && (string |> String.dropLeft 7 |> String.startsWith "-")

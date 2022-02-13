@@ -6,5 +6,6 @@
 /mini.js
 /index.html
 /.build/
-/build/
+/build.release/
+/build.debug/
 /swift-tools/.build/
