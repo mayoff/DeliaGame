@@ -1,5 +1,6 @@
 port module App exposing (main)
 
+import Array exposing (Array)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Element exposing (Element)
@@ -9,7 +10,6 @@ import Html exposing (Html)
 import Html.Attributes
 import Json.Decode as D
 import Json.Encode as E
-import List.Extra as List2
 import Maybe.Extra as Maybe2
 import Playing exposing (PointerType)
 import Puzzle exposing (Date, Puzzle, dateFromIsoDateTime)
@@ -21,7 +21,7 @@ import Url.Parser.Query as QP
 type alias Model =
     { navigationKey : Nav.Key
     , pointer : PointerType
-    , puzzles : List Puzzle
+    , puzzles : Array Puzzle
     , route : Route
     , url : Url
     }
@@ -129,7 +129,10 @@ init flags url key =
             dateFromIsoDateTime flags.isoDateTime
 
         puzzles =
-            flags.puzzles |> List.filter (\puzzle -> puzzle.date <= date)
+            flags.puzzles
+                |> List.filter (\puzzle -> puzzle.date <= date)
+                |> List.sortBy .date
+                |> Array.fromList
 
         pointer =
             if flags.hasMouse then
@@ -182,11 +185,16 @@ dateForUrl =
         { url | path = "/" } |> UP.parse parser |> Maybe2.join
 
 
-puzzleForDate : List Puzzle -> Maybe Date -> Maybe Puzzle
+puzzleForDate : Array Puzzle -> Maybe Date -> Maybe Puzzle
 puzzleForDate puzzles maybeDate =
     maybeDate
-        |> Maybe.andThen (\date -> List2.find (\puzzle -> puzzle.date == date) puzzles)
-        |> Maybe2.orElse (List2.last puzzles)
+        |> Maybe.andThen
+            (\date ->
+                puzzles
+                    |> Array.filter (\puzzle -> puzzle.date == date)
+                    |> Array.get 0
+            )
+        |> Maybe2.orElse (arrayLast puzzles)
 
 
 updateUrlCmd : Model -> Cmd Msg
@@ -202,28 +210,40 @@ updateUrlCmd model =
             updateUrlWithDateCmd model puzzle.date
 
 
-urlSetDate : Url -> Date -> Url
-urlSetDate url date =
-    { url | query = Just ("date=" ++ date) }
-
-
 updateUrlWithDateCmd : Model -> Date -> Cmd Msg
 updateUrlWithDateCmd model date =
     let
-        oldUrl =
+        url =
             model.url
 
-        newUrl =
-            urlSetDate oldUrl date
+        dateParam =
+            "date=" ++ date
+
+        isDateOfLatestPuzzle =
+            Just date == (arrayLast model.puzzles |> Maybe.map .date)
+
+        isAcceptableQuery =
+            (url.query == Nothing && isDateOfLatestPuzzle)
+                || (url.query == Just dateParam)
     in
-    if newUrl.query == model.url.query then
+    if isAcceptableQuery then
         Cmd.none
 
-    else if model.url.query == Nothing then
-        Nav.replaceUrl model.navigationKey (Url.toString newUrl)
-
     else
-        Nav.pushUrl model.navigationKey (Url.toString newUrl)
+        let
+            newQuery =
+                if isDateOfLatestPuzzle then
+                    Nothing
+
+                else
+                    Just dateParam
+        in
+        Nav.pushUrl model.navigationKey ({ url | query = newQuery } |> Url.toString)
+
+
+urlSetDate : Url -> Date -> Url
+urlSetDate url date =
+    { url | query = Just ("date=" ++ date) }
 
 
 subscriptions : Model -> Sub.Sub Msg
@@ -393,7 +413,7 @@ view model =
             ]
 
 
-dayPickerView : Url -> Date -> List Puzzle -> Element Msg
+dayPickerView : Url -> Date -> Array Puzzle -> Element Msg
 dayPickerView url currentDate puzzles =
     let
         pickPrior : Date -> Maybe Date -> Maybe Date
@@ -426,7 +446,7 @@ dayPickerView url currentDate puzzles =
 
         dates : { prior : Maybe Date, next : Maybe Date }
         dates =
-            List.foldl pickDates { prior = Nothing, next = Nothing } puzzles
+            Array.foldl pickDates { prior = Nothing, next = Nothing } puzzles
     in
     [ dates.prior |> Maybe.map (urlSetDate url) |> dayLink "Previous"
     , Element.text currentDate
@@ -462,3 +482,8 @@ dayLink label maybeUrl =
 style : String -> String -> Element.Attribute msg
 style name value =
     Element.htmlAttribute <| Html.Attributes.style name value
+
+
+arrayLast : Array a -> Maybe a
+arrayLast array =
+    Array.get (Array.length array - 1) array

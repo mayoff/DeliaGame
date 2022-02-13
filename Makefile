@@ -31,7 +31,7 @@ $(buildDir)/index.html: index.html.m4 $(buildDir)/mini.js puzzles.json Makefile
 $(buildDir)/mini.js: $(buildDir)/main.js Makefile
 	mkdir -p build
 ifdef debug
-	cp $^ $@.new
+	cp $< $@.new
 else
 	closure-compiler --js_output_file $@.new $<
 endif
