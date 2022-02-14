@@ -11,7 +11,7 @@ import Html.Attributes
 import Json.Decode as D
 import Json.Encode as E
 import Maybe.Extra as Maybe2
-import Playing exposing (PointerType)
+import Playing exposing (PointerType, persistentStateForModel)
 import Puzzle exposing (Date, Puzzle, dateFromIsoDateTime)
 import Url exposing (Url)
 import Url.Parser as UP exposing ((</>), (<?>))
@@ -45,67 +45,6 @@ type alias AppFlags =
     , hasMouse : Bool
     , puzzles : List Puzzle
     }
-
-
-type JavascriptRequest
-    = GetText { date : Date }
-    | SetText { date : Date, text : String }
-
-
-encodeJavascriptRequest : JavascriptRequest -> E.Value
-encodeJavascriptRequest request =
-    case request of
-        GetText { date } ->
-            E.object
-                [ ( "date", E.string date )
-                , ( "type", E.string "GetText" )
-                ]
-
-        SetText { date, text } ->
-            E.object
-                [ ( "date", E.string date )
-                , ( "text", E.string text )
-                , ( "type", E.string "SetText" )
-                ]
-
-
-port javascriptRequest : E.Value -> Cmd msg
-
-
-type alias DidGetTextResponse =
-    { date : Date
-    , maybeText : Maybe String
-    }
-
-
-type JavascriptResponse
-    = DidGetText DidGetTextResponse
-
-
-decodeJavascriptResponse : D.Value -> Maybe JavascriptResponse
-decodeJavascriptResponse =
-    let
-        didGetTextDecoder =
-            D.map2 DidGetTextResponse
-                (D.field "date" D.string)
-                (D.field "text" (D.nullable D.string))
-
-        decoder =
-            D.field "type" D.string
-                |> D.andThen
-                    (\responseType ->
-                        case responseType of
-                            "DidGetText" ->
-                                D.map DidGetText didGetTextDecoder
-
-                            _ ->
-                                D.fail ("unknown type" ++ responseType)
-                    )
-    in
-    D.decodeValue decoder >> Result.toMaybe
-
-
-port javascriptResponse : (D.Value -> msg) -> Sub msg
 
 
 main : Program AppFlags Model Msg
@@ -169,7 +108,7 @@ routeForDate model maybeDate =
 
         Just puzzle ->
             ( LoadingRoute puzzle
-            , GetText { date = puzzle.date } |> encodeJavascriptRequest |> javascriptRequest
+            , getStateCmd puzzle.date
             )
 
 
@@ -293,23 +232,18 @@ applyMsg msg model =
 applyPlayingMsg : Playing.Msg -> Model -> Playing.Model -> ( Model, Cmd Msg )
 applyPlayingMsg msg model playing =
     let
-        oldText =
-            Playing.puzzleText playing
-
         newPlaying =
             Playing.update msg playing
 
+        newState =
+            persistentStateForModel newPlaying
+
         saveCmd =
-            if oldText == Playing.puzzleText newPlaying then
+            if persistentStateForModel playing == newState then
                 Cmd.none
 
             else
-                SetText
-                    { date = Playing.puzzleDate newPlaying
-                    , text = Playing.puzzleText newPlaying
-                    }
-                    |> encodeJavascriptRequest
-                    |> javascriptRequest
+                setStateCmd (Playing.puzzleDate playing) newState
     in
     ( { model | route = PlayingRoute newPlaying }
     , saveCmd
@@ -329,12 +263,19 @@ linkWasClicked request model =
 didReceiveJavascriptResponse : D.Value -> Model -> ( Model, Cmd Msg )
 didReceiveJavascriptResponse value model =
     case ( decodeJavascriptResponse value, model.route ) of
-        ( Just (DidGetText { date, maybeText }), LoadingRoute puzzle ) ->
-            if puzzle.date == date then
-                pure { model | route = PlayingRoute (Playing.init puzzle (maybeText |> Maybe.withDefault puzzle.text) model.pointer) }
+        ( Just (LocalStorageDidGet key maybeValue), LoadingRoute puzzle ) ->
+            if localStorageKeyForDate puzzle.date /= key then
+                pure model
 
             else
-                pure model
+                let
+                    maybeState =
+                        maybeValue
+                            |> Maybe.map (D.decodeString Playing.persistentStateDecoder)
+                            |> Maybe.map Result.toMaybe
+                            |> Maybe2.join
+                in
+                pure { model | route = PlayingRoute (Playing.init puzzle maybeState model.pointer) }
 
         _ ->
             pure model
@@ -487,3 +428,95 @@ style name value =
 arrayLast : Array a -> Maybe a
 arrayLast array =
     Array.get (Array.length array - 1) array
+
+
+
+-- PORTS
+
+
+type LocalStorageKey
+    = LocalStorageKey String
+
+
+encodeLocalStorageKey : LocalStorageKey -> E.Value
+encodeLocalStorageKey (LocalStorageKey key) =
+    E.string key
+
+
+localStorageKeyDecoder : D.Decoder LocalStorageKey
+localStorageKeyDecoder =
+    D.string |> D.map LocalStorageKey
+
+
+type JavascriptRequest
+    = LocalStorageGet LocalStorageKey
+    | LocalStorageSet LocalStorageKey String
+
+
+encodeJavascriptRequest : JavascriptRequest -> E.Value
+encodeJavascriptRequest request =
+    case request of
+        LocalStorageGet key ->
+            E.object
+                [ ( "key", encodeLocalStorageKey key )
+                , ( "type", E.string "LocalStorageGet" )
+                ]
+
+        LocalStorageSet key value ->
+            E.object
+                [ ( "key", encodeLocalStorageKey key )
+                , ( "type", E.string "LocalStorageSet" )
+                , ( "value", E.string value )
+                ]
+
+
+port javascriptRequest : E.Value -> Cmd msg
+
+
+type JavascriptResponse
+    = LocalStorageDidGet LocalStorageKey (Maybe String)
+
+
+decodeJavascriptResponse : D.Value -> Maybe JavascriptResponse
+decodeJavascriptResponse =
+    let
+        localStorageDidGetDecoder =
+            D.map2 LocalStorageDidGet
+                (D.field "key" localStorageKeyDecoder)
+                (D.field "value" (D.nullable D.string))
+
+        decoder =
+            D.field "type" D.string
+                |> D.andThen
+                    (\responseType ->
+                        case responseType of
+                            "LocalStorageDidGet" ->
+                                localStorageDidGetDecoder
+
+                            _ ->
+                                D.fail ("unknown type" ++ responseType)
+                    )
+    in
+    D.decodeValue decoder >> Result.toMaybe
+
+
+port javascriptResponse : (D.Value -> msg) -> Sub msg
+
+
+
+-- PERSISTENT STATE
+
+
+localStorageKeyForDate : Date -> LocalStorageKey
+localStorageKeyForDate date =
+    LocalStorageKey ("scrambled-state-" ++ date)
+
+
+getStateCmd : Date -> Cmd Msg
+getStateCmd date =
+    LocalStorageGet (localStorageKeyForDate date) |> encodeJavascriptRequest |> javascriptRequest
+
+
+setStateCmd : Date -> Playing.PersistentState -> Cmd Msg
+setStateCmd date state =
+    LocalStorageSet (localStorageKeyForDate date) (state |> Playing.encodePersistentState) |> encodeJavascriptRequest |> javascriptRequest

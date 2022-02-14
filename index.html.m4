@@ -25,20 +25,18 @@ undivert([[mini.js]])
             }
         });
 
-        function keyForDate(date) { return `text-${date}`; }
-
         app.ports.javascriptRequest.subscribe(function (request) {
             switch (request.type) {
-                case 'SetText':
-                    localStorage.setItem(keyForDate(request.date), request.text);
+                case 'LocalStorageSet':
+                    localStorage.setItem(request.key, request.value);
                     break;
 
-                case 'GetText':
-                    const text = localStorage.getItem(keyForDate(request.date));
+                case 'LocalStorageGet':
+                    const value = localStorage.getItem(request.key);
                     app.ports.javascriptResponse.send({
-                        date: request.date,
-                        text: text,
-                        type: 'DidGetText'
+                        key: request.key,
+                        type: 'LocalStorageDidGet',
+                        value: value
                     });
                     break;
 

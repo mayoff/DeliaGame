@@ -1,10 +1,13 @@
 module Playing exposing
     ( Model
     , Msg
+    , PersistentState
     , PointerType(..)
+    , encodePersistentState
     , init
+    , persistentStateDecoder
+    , persistentStateForModel
     , puzzleDate
-    , puzzleText
     , update
     , view
     )
@@ -15,11 +18,15 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Events as Events
 import Element.Font as Font
+import Element.Input
 import Html
 import Html.Attributes
 import Html.Events
+import Json.Decode as D
+import Json.Encode as E
 import Maybe.Extra as Maybe2
 import Puzzle exposing (Date, Puzzle)
+import Set exposing (Set)
 import Sha256
 
 
@@ -34,27 +41,39 @@ type PointerType
 
 type alias Privates =
     { puzzle : Puzzle
-    , history : List String
+    , locks : Set Char
+    , history : List UndoEntry
     , hovered : Maybe Char
     , selected : Maybe Char
     , pointer : PointerType
     }
 
 
-init : Puzzle -> String -> PointerType -> Model
-init puzzle text pointer =
+type alias UndoEntry =
+    { text : String
+    , locks : Set Char
+    }
+
+
+init : Puzzle -> Maybe PersistentState -> PointerType -> Model
+init puzzle maybeState pointer =
+    let
+        ( locks, text ) =
+            case maybeState of
+                Nothing ->
+                    ( Set.empty, puzzle.text )
+
+                Just (PersistentState state) ->
+                    ( state.locks, state.text )
+    in
     Model
         { puzzle = { puzzle | text = text }
+        , locks = locks
         , history = []
         , hovered = Nothing
         , selected = Nothing
         , pointer = pointer
         }
-
-
-puzzleText : Model -> String
-puzzleText (Model model) =
-    model.puzzle.text
 
 
 puzzleDate : Model -> Date
@@ -67,6 +86,7 @@ type Msg
     | Ignore
     | MouseEnter Char
     | MouseLeave Char
+    | SetLocked Char Bool
     | Undo
 
 
@@ -79,16 +99,20 @@ applyMsg : Msg -> Privates -> Privates
 applyMsg msg model =
     let
         hoverFor c =
-            case model.selected of
-                Nothing ->
-                    Just c
+            if Set.member c model.locks then
+                Nothing
 
-                Just d ->
-                    if canSwap c d then
+            else
+                case model.selected of
+                    Nothing ->
                         Just c
 
-                    else
-                        Nothing
+                    Just d ->
+                        if canSwap c d then
+                            Just c
+
+                        else
+                            Nothing
     in
     case msg of
         Click c ->
@@ -102,6 +126,9 @@ applyMsg msg model =
 
         MouseLeave c ->
             { model | hovered = model.hovered |> Maybe2.filter (isnt c) }
+
+        SetLocked c isLocked ->
+            setLocked model c isLocked
 
         Undo ->
             applyUndo model
@@ -126,10 +153,21 @@ isVowel =
     \c -> List.member c vowels
 
 
+undoStateForModel : Privates -> UndoEntry
+undoStateForModel model =
+    { text = model.puzzle.text
+    , locks = model.locks
+    }
+
+
 checkSolved : Privates -> Privates
 checkSolved model =
     if isSolved model then
-        { model | hovered = Nothing, selected = Nothing }
+        { model
+            | hovered = Nothing
+            , selected = Nothing
+            , locks = Set.empty
+        }
 
     else
         model
@@ -142,27 +180,31 @@ isSolved model =
 
 applyClick : Privates -> Char -> Privates
 applyClick model c =
-    case model.selected of
-        Nothing ->
-            { model | selected = Just c }
+    if Set.member c model.locks then
+        model
 
-        Just s ->
-            if canSwap s c then
-                let
-                    newText =
-                        String.map (charSwap c s) model.puzzle.text
+    else
+        case model.selected of
+            Nothing ->
+                { model | selected = Just c }
 
-                    newHovered =
-                        model.hovered |> Maybe.map (\_ -> s)
-                in
-                { model
-                    | selected = Nothing
-                    , hovered = newHovered
-                }
-                    |> setPuzzleText newText
+            Just s ->
+                if canSwap s c then
+                    let
+                        newText =
+                            String.map (charSwap c s) model.puzzle.text
 
-            else
-                model
+                        newHovered =
+                            model.hovered |> Maybe.map (\_ -> s)
+                    in
+                    { model
+                        | selected = Nothing
+                        , hovered = newHovered
+                    }
+                        |> setPuzzleText newText
+
+                else
+                    model
 
 
 setPuzzleText : String -> Privates -> Privates
@@ -177,7 +219,7 @@ setPuzzleText text model =
     else
         { model
             | puzzle = { puzzle | text = text }
-            , history = puzzle.text :: model.history
+            , history = undoStateForModel model :: model.history
         }
 
 
@@ -195,6 +237,25 @@ charSwap x y z =
     Dict.get z table |> Maybe.withDefault z
 
 
+setLocked : Privates -> Char -> Bool -> Privates
+setLocked model c isLocked =
+    if Set.member c model.locks == isLocked then
+        model
+
+    else
+        { model
+            | locks =
+                if isLocked then
+                    Set.insert c model.locks
+
+                else
+                    Set.remove c model.locks
+            , history = undoStateForModel model :: model.history
+            , selected = model.selected |> Maybe2.filter (isnt c)
+            , hovered = model.hovered |> Maybe2.filter (isnt c)
+        }
+
+
 applyUndo : Privates -> Privates
 applyUndo model =
     case model.history of
@@ -204,7 +265,8 @@ applyUndo model =
                     model.puzzle
             in
             { model
-                | puzzle = { puzzle | text = first }
+                | puzzle = { puzzle | text = first.text }
+                , locks = first.locks
                 , history = rest
             }
 
@@ -244,6 +306,12 @@ view (Model model) =
     , inventoryView model |> el [ centerX, hideIfSolved ]
     , "The number under each letter is how many times that letter currently appears in the puzzle. "
         ++ "The numbers will change as you swap letters."
+        |> paragraph
+    , makeTitleCase verb
+        ++ " a lock (🔒) to ‘lock in’ a letter you're sure about, "
+        ++ "so you don't accidentally swap it. You can "
+        ++ verb
+        ++ " the lock again to unlock the letter if you change your mind."
         |> paragraph
     , undoButton model |> el [ hideIfSolved, centerX ]
     ]
@@ -356,9 +424,27 @@ inventoryView model =
 
 countedCharView : Privates -> ( Char, Int ) -> Element Msg
 countedCharView model ( c, count ) =
+    let
+        isLocked =
+            Set.member c model.locks
+
+        lockButtonAttributes =
+            if isLocked then
+                []
+
+            else
+                [ style "filter" "grayscale(100%)"
+                , style "-webkit-filter" "grayscale(100%)"
+                , Element.alpha 0.5
+                ]
+    in
     column
         []
-        [ charView model c
+        [ Element.Input.button ([ centerX ] ++ lockButtonAttributes)
+            { onPress = Just (SetLocked c (not isLocked))
+            , label = text "🔒"
+            }
+        , charView model c
             |> el
                 (charStyle ++ [ centerX ])
         , String.fromInt count
@@ -373,6 +459,16 @@ countedCharView model ( c, count ) =
 charView : Privates -> Char -> Element Msg
 charView model c =
     let
+        isLocked =
+            Set.member c model.locks
+
+        bold =
+            if isLocked then
+                [ Font.bold ]
+
+            else
+                []
+
         cLower =
             Char.toLower c
 
@@ -423,7 +519,7 @@ charView model c =
              , Background.color bgColor
              , unselectable
              ]
-                ++ extras
+                ++ (extras ++ bold)
             )
 
 
@@ -453,3 +549,48 @@ charStyle =
 style : String -> String -> Element.Attribute msg
 style name value =
     Element.htmlAttribute <| Html.Attributes.style name value
+
+
+
+-- PERSISTENT STATE
+
+
+type PersistentState
+    = PersistentState PersistentStateRecord
+
+
+type alias PersistentStateRecord =
+    { locks : Set Char
+    , text : String
+    }
+
+
+persistentStateForModel : Model -> PersistentState
+persistentStateForModel (Model model) =
+    PersistentState
+        { locks = model.locks
+        , text = model.puzzle.text
+        }
+
+
+encodePersistentState : PersistentState -> String
+encodePersistentState (PersistentState { locks, text }) =
+    E.encode 0
+        (E.object
+            [ ( "locks", locks |> Set.toList |> String.fromList |> E.string )
+            , ( "text", E.string text )
+            ]
+        )
+
+
+persistentStateDecoder : D.Decoder PersistentState
+persistentStateDecoder =
+    let
+        locksDecoder : D.Decoder (Set Char)
+        locksDecoder =
+            D.string |> D.map (String.toList >> Set.fromList)
+    in
+    D.map2 PersistentStateRecord
+        (D.field "locks" locksDecoder)
+        (D.field "text" D.string)
+        |> D.map PersistentState

@@ -1,7 +1,7 @@
 #!/usr/bin/osascript -lJavaScript
 
 (() => {
-    const targetUrl = 'http://eos.dqd.com/~mayoff/DeliaGame/';
+    const targetUrl = 'http://localhost/~mayoff/DeliaGame/';
     const safari = Application('Safari');
     safari.activate();
 
