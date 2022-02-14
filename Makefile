@@ -44,6 +44,6 @@ $(buildDir)/main.js: elm.json $(wildcard src/*.elm) Makefile
 
 .PHONY: scramble
 scramble:
-	(cd swift-tools && swift run scramble ../puzzles.json) > puzzles.json.new
+	swift run scramble puzzles.json > puzzles.json.new
 	mv puzzles.json.new puzzles.json
 
