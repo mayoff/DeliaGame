@@ -460,7 +460,7 @@ charView : Privates -> Char -> Element Msg
 charView model c =
     let
         isLocked =
-            Set.member c model.locks
+            Set.member (Char.toLower c) model.locks
 
         bold =
             if isLocked then
