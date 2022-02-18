@@ -8,6 +8,7 @@ struct PuzzleFile: Codable {
 struct Puzzle: Codable {
     var date: String
     var author: String
+    var comment: String?
     var detail: Detail
 
     enum Detail {
@@ -27,6 +28,7 @@ struct Puzzle: Codable {
     enum CodingKeys: String, CodingKey {
         case date
         case author
+        case comment
     }
 
     struct DetailError: Error {
@@ -39,6 +41,7 @@ struct Puzzle: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         date = try container.decode(String.self, forKey: .date)
         author = try container.decode(String.self, forKey: .author)
+        comment = try container.decodeIfPresent(String.self, forKey: .comment)
         do {
             detail = .plain(try Plain(from: decoder))
         } catch let plainError {
@@ -54,6 +57,7 @@ struct Puzzle: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(date, forKey: .date)
         try container.encode(author, forKey: .author)
+        try container.encodeIfPresent(comment, forKey: .comment)
         switch detail {
         case .plain(let plain):
             try plain.encode(to: encoder)
