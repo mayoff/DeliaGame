@@ -185,6 +185,11 @@ urlSetDate url date =
     { url | query = Just ("date=" ++ date) }
 
 
+urlRemoveDate : Url -> Url
+urlRemoveDate url =
+    { url | query = Nothing }
+
+
 subscriptions : Model -> Sub.Sub Msg
 subscriptions _ =
     javascriptResponse DidReceiveJavascriptResponse
@@ -348,6 +353,7 @@ view model =
         ]
         [ dayPicker
         , element
+        , "https://github.com/mayoff/DeliaGame" |> Url.fromString |> link "github"
         ]
         |> Element.layout
             [ style "padding" "3em"
@@ -388,19 +394,26 @@ dayPickerView url currentDate puzzles =
         dates : { prior : Maybe Date, next : Maybe Date }
         dates =
             Array.foldl pickDates { prior = Nothing, next = Nothing } puzzles
-    in
-    [ dates.prior |> Maybe.map (urlSetDate url) |> dayLink "Previous"
-    , Element.text currentDate
-    , dates.next |> Maybe.map (urlSetDate url) |> dayLink "Next"
-    ]
-        |> Element.row
-            [ Element.spacing 30
-            , Element.centerX
+
+        middle =
+            [ dates.prior |> Maybe.map (urlSetDate url) |> link "Previous"
+            , Element.text currentDate
+            , dates.next |> Maybe.map (urlSetDate url) |> link "Next"
             ]
+                |> Element.row
+                    [ Element.spacing 30
+                    , Element.centerX
+                    ]
+    in
+    [ puzzles |> Array.get 0 |> Maybe.map .date |> Maybe.map (urlSetDate url) |> link "First"
+    , middle
+    , Just (urlRemoveDate url) |> link "Latest"
+    ]
+        |> Element.row [ Element.width Element.fill ]
 
 
-dayLink : String -> Maybe Url -> Element Msg
-dayLink label maybeUrl =
+link : String -> Maybe Url -> Element Msg
+link label maybeUrl =
     let
         labelElement =
             Element.text label
