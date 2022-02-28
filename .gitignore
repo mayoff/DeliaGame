@@ -2,9 +2,6 @@
 /.idea/
 *~
 /elm-stuff/
-/main.js
-/mini.js
-/index.html
 /.build/
 /build.release/
 /build.debug/
