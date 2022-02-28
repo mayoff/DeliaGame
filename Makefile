@@ -4,6 +4,7 @@
 ifdef debug
 buildDir = build.debug
 elmOptions = --debug
+M4_FLAGS += -Ddebug=1
 else
 buildDir = build.release
 elmOptions = --optimize
@@ -25,7 +26,7 @@ public: $(buildDir)/index.html Makefile
 
 $(buildDir)/index.html: index.html.m4 $(buildDir)/mini.js puzzles.json Makefile
 	mkdir -p $(buildDir)
-	m4 -I$(buildDir) $< > $@.new
+	m4 -I$(buildDir) $(M4_FLAGS) $< > $@.new
 	mv $@.new $@
 
 $(buildDir)/mini.js: $(buildDir)/main.js Makefile
