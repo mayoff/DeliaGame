@@ -353,9 +353,17 @@ undoButton model =
 
 puzzleView : Privates -> Element Msg
 puzzleView model =
+    model.puzzle.text
+        |> String.lines
+        |> List.map (lineView model)
+        |> column [ centerX ]
+
+
+lineView : Privates -> String -> Element Msg
+lineView model line =
     let
         words =
-            model.puzzle.text
+            line
                 |> String.words
                 |> List.foldr
                     (\word list ->
@@ -370,7 +378,7 @@ puzzleView model =
     words
         |> List.map (wordView model)
         |> wrappedRow
-            (charStyle ++ [ centerX, unselectable ])
+            (charStyle ++ [ Element.alignLeft, unselectable ])
 
 
 wordView : Privates -> String -> Element Msg
