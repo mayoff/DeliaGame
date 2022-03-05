@@ -26,8 +26,8 @@ import Json.Decode as D
 import Json.Encode as E
 import Maybe.Extra as Maybe2
 import Puzzle exposing (Date, Puzzle)
+import SHA256
 import Set exposing (Set)
-import Sha256
 
 
 type Model
@@ -92,7 +92,7 @@ type Msg
 
 update : Msg -> Model -> Model
 update msg (Model model) =
-    applyMsg msg model |> checkSolved |> Model
+    applyMsg msg model |> checkSolved model |> Model
 
 
 applyMsg : Msg -> Privates -> Privates
@@ -160,9 +160,9 @@ undoStateForModel model =
     }
 
 
-checkSolved : Privates -> Privates
-checkSolved model =
-    if isSolved model then
+checkSolved : Privates -> Privates -> Privates
+checkSolved oldModel model =
+    if oldModel.puzzle.text /= model.puzzle.text && isSolved model then
         { model
             | hovered = Nothing
             , selected = Nothing
@@ -175,7 +175,13 @@ checkSolved model =
 
 isSolved : Privates -> Bool
 isSolved model =
-    Sha256.sha256 model.puzzle.text == model.puzzle.hash
+    let
+        textHash =
+            model.puzzle.text
+                |> SHA256.fromString
+                |> SHA256.toHex
+    in
+    textHash == model.puzzle.hash
 
 
 applyClick : Privates -> Char -> Privates
