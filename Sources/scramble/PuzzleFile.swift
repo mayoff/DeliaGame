@@ -36,7 +36,6 @@ struct Puzzle: Codable {
         var scrambled: Error
     }
 
-
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         date = try container.decode(String.self, forKey: .date)
@@ -64,6 +63,52 @@ struct Puzzle: Codable {
         case .scrambled(let scrambled):
             try scrambled.encode(to: encoder)
         }
+    }
+}
+
+extension PuzzleFile {
+    enum DateWarning {
+        case duplicate(String)
+        case gap(String)
+    }
+
+    func warnings() -> [DateWarning] {
+        var dates = [String: Int]()
+        for puzzle in puzzles {
+            dates[puzzle.date, default: 0] += 1
+        }
+
+        var warnings = [DateWarning]()
+        for (date, count) in dates {
+            if count > 1 {
+                warnings.append(.duplicate(date))
+            }
+
+            if dates[date.nextDate] == nil && dates[date.nextDate.nextDate] != nil {
+                warnings.append(.gap(date.nextDate))
+            }
+        }
+
+        return warnings
+    }
+}
+
+fileprivate let dateFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter
+}()
+
+fileprivate let calendar = Calendar(identifier: .gregorian)
+
+extension String {
+    fileprivate var nextDate: String {
+        let ints = self.split(separator: "-").map { Int($0)! }
+        let myComponents = DateComponents(timeZone: TimeZone.current, era: 1, year: ints[0], month: ints[1], day: ints[2], hour: 12, minute: 0, second: 0)
+        let me = calendar.date(from: myComponents)!
+        let next = calendar.date(byAdding: .day, value: 1, to: me)!
+        let nextComponents = calendar.dateComponents(in: TimeZone.current, from: next)
+        return String(format: "%04d-%02d-%02d", nextComponents.year!, nextComponents.month!, nextComponents.day!)
     }
 }
 

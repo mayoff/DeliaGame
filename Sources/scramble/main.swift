@@ -23,8 +23,10 @@ default:
 
 var rng = PCG128S()
 var puzzleFile = try! JSONDecoder().decode(PuzzleFile.self, from: stdin.readToEnd()!)
+for warning in puzzleFile.warnings() {
+    print("warning: \(warning)", to: &stderr)
+}
 puzzleFile.scramble(using: &rng)
 let encoder = JSONEncoder()
 encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 try! stdout.write(encoder.encode(puzzleFile))
-
