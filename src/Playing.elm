@@ -41,6 +41,7 @@ type PointerType
 
 type alias Privates =
     { puzzle : Puzzle
+    , originalText : String
     , locks : Set Char
     , history : List UndoEntry
     , hovered : Maybe Char
@@ -68,6 +69,7 @@ init puzzle maybeState pointer =
     in
     Model
         { puzzle = { puzzle | text = text }
+        , originalText = puzzle.text
         , locks = locks
         , history = []
         , hovered = Nothing
@@ -86,6 +88,7 @@ type Msg
     | Ignore
     | MouseEnter Char
     | MouseLeave Char
+    | Reset
     | SetLocked Char Bool
     | Undo
 
@@ -126,6 +129,18 @@ applyMsg msg model =
 
         MouseLeave c ->
             { model | hovered = model.hovered |> Maybe2.filter (isnt c) }
+
+        Reset ->
+            let
+                puzzle =
+                    model.puzzle
+            in
+            { model
+                | puzzle = { puzzle | text = model.originalText }
+                , locks = Set.empty
+                , hovered = Nothing
+                , selected = Nothing
+            }
 
         SetLocked c isLocked ->
             setLocked model c isLocked
@@ -319,7 +334,10 @@ view (Model model) =
         ++ verb
         ++ " the lock again to unlock the letter if you change your mind."
         |> paragraph
-    , undoButton model |> el [ hideIfSolved, centerX ]
+    , row [ hideIfSolved, centerX ]
+        [ undoButton model
+        , resetButton
+        ]
     ]
         |> column
             [ centerX
@@ -351,6 +369,19 @@ undoButton model =
         , Html.Attributes.style "font-size" "24px"
         ]
         [ Html.text "Undo"
+        ]
+        |> Element.html
+        |> el
+            [ unselectable ]
+
+
+resetButton : Element Msg
+resetButton =
+    Html.button
+        [ Html.Events.onClick Reset
+        , Html.Attributes.style "font-size" "24px"
+        ]
+        [ Html.text "Reset"
         ]
         |> Element.html
         |> el
