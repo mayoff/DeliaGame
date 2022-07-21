@@ -24,6 +24,7 @@ import Html.Attributes
 import Html.Events
 import Json.Decode as D
 import Json.Encode as E
+import List.Extra
 import Maybe.Extra as Maybe2
 import Puzzle exposing (Date, Puzzle)
 import SHA256
@@ -399,6 +400,9 @@ puzzleView model =
 lineView : Privates -> String -> Element Msg
 lineView model line =
     let
+        leadingSpaces =
+            line |> String.toList |> List.Extra.takeWhile isSpace |> String.fromList
+
         words =
             line
                 |> String.words
@@ -412,10 +416,15 @@ lineView model line =
                     )
                     []
     in
-    words
+    ([ leadingSpaces ] ++ words)
         |> List.map (wordView model)
         |> wrappedRow
             (charStyle ++ [ Element.alignLeft, unselectable ])
+
+
+isSpace : Char -> Bool
+isSpace c =
+    c == ' '
 
 
 wordView : Privates -> String -> Element Msg
